@@ -568,61 +568,47 @@ function Row({ label, value, children }) {
 }
 
 /* ─── ActionCell ─────────────────────────────────────────────────── */
-function ActionCell({ rdv, onDetails, onEncaisser, onReceipt, onOrdonnance }) {
-  const pStatut = rdv.paiement?.statut;
-  const isPaid  = ['paye_cash','paye_carte','paye_technicien','gratuit'].includes(pStatut);
+function ActionCell({ rdv, onDetails, onEncaisser, onReceipt, onOrdonnance, onEdit, onAnnuler, onSupprimer, onConfirmer }) {
+  const st = rdv.statut;
 
-  if (rdv.statut === 'en_attente') {
+  if (st === 'annule') {
     return (
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {rdv.statut_ordonnance === 'en_attente_lecture' && (
-          <button onClick={() => onOrdonnance(rdv)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors whitespace-nowrap animate-pulse">
-            👁️ Voir & Saisir
-          </button>
-        )}
-        {rdv.lieu === 'domicile' && (
-          <button className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#1565C0] text-white hover:bg-[#0D47A1] transition-colors">
-            Assigner
-          </button>
-        )}
-        <button title="Confirmer"
-          className="w-8 h-8 rounded-lg bg-[#E8F5E9] text-[#2E7D32] font-bold text-sm hover:bg-[#C8E6C9] transition-colors flex items-center justify-center">
-          ✓
-        </button>
-        <button title="Annuler"
-          className="w-8 h-8 rounded-lg bg-[#FFEBEE] text-[#C62828] font-bold text-sm hover:bg-[#FFCDD2] transition-colors flex items-center justify-center">
-          ✗
-        </button>
-        {pStatut === 'en_attente' && (
-          <button onClick={() => onEncaisser(rdv)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors whitespace-nowrap">
-            💵 Encaisser
-          </button>
-        )}
-        {pStatut === 'non_facture' && (
-          <button onClick={() => onEncaisser(rdv)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors whitespace-nowrap">
-            💰 Facturer
-          </button>
-        )}
+      <div className="flex items-center gap-1.5">
+        <button onClick={() => onSupprimer(rdv)} title="Supprimer"
+          className="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center text-sm transition-colors">🗑️</button>
       </div>
     );
   }
 
+  if (st === 'termine') {
+    return (
+      <div className="flex items-center gap-1.5">
+        <button onClick={() => onDetails(rdv)}
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">👁️ Détails</button>
+      </div>
+    );
+  }
+
+  // en_attente ou confirme
   return (
-    <div className="flex items-center gap-1.5">
-      <button onClick={() => onDetails(rdv)}
-        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
-        ••• Détails
-      </button>
-      {isPaid && rdv.paiement?.recu && (
-        <button onClick={() => onReceipt(rdv)} title="Voir reçu"
-          className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center text-sm transition-colors">
-          🧾
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {rdv.statut_ordonnance === 'en_attente_lecture' && (
+        <button onClick={() => onOrdonnance(rdv)}
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors whitespace-nowrap animate-pulse">
+          👁️ Lire ordonnance
         </button>
       )}
-      {(pStatut === 'en_attente' || pStatut === 'non_facture') && (
+      {st === 'en_attente' && (
+        <button onClick={() => onConfirmer(rdv.id)} title="Confirmer"
+          className="w-8 h-8 rounded-lg bg-[#E8F5E9] text-[#2E7D32] font-bold text-sm hover:bg-[#C8E6C9] transition-colors flex items-center justify-center">✓</button>
+      )}
+      <button onClick={() => onEdit(rdv)} title="Modifier"
+        className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center text-sm transition-colors">✏️</button>
+      <button onClick={() => onAnnuler(rdv)} title="Annuler"
+        className="w-8 h-8 rounded-lg bg-[#FFEBEE] text-[#C62828] font-bold text-sm hover:bg-[#FFCDD2] transition-colors flex items-center justify-center">✗</button>
+      <button onClick={() => onSupprimer(rdv)} title="Supprimer"
+        className="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center text-sm transition-colors">🗑️</button>
+      {rdv.paiement && ['en_attente','non_facture'].includes(rdv.paiement.statut) && (
         <button onClick={() => onEncaisser(rdv)}
           className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors whitespace-nowrap">
           💵 Encaisser
@@ -898,6 +884,8 @@ export default function RdvPage() {
   const [receiptRdv,     setReceiptRdv]     = useState(null);
   const [ordonnanceRdv,  setOrdonnanceRdv]  = useState(null);
   const [resultatsRdv,   setResultatsRdv]   = useState(null);
+  const [editRdv,        setEditRdv]        = useState(null);
+  const [editForm,       setEditForm]       = useState({});
   const [analysesList,   setAnalysesList]   = useState([]);
   const [historique,     setHistorique]     = useState([]);
 
@@ -1053,6 +1041,33 @@ export default function RdvPage() {
     } else {
       alert('Erreur : ' + error.message);
     }
+  };
+
+  // ── Actions RDV ──
+  const annulerRdv = async (rdv) => {
+    if (!confirm(`Annuler le RDV de ${rdv.nom || 'ce patient'} ?`)) return;
+    await supabase.from('rdv').update({ statut: 'annule' }).eq('id', rdv.id);
+    chargerRdv();
+  };
+
+  const supprimerRdv = async (rdv) => {
+    if (!confirm(`Supprimer définitivement le RDV de ${rdv.nom || 'ce patient'} ?`)) return;
+    await supabase.from('rdv_analyses').delete().eq('rdv_id', rdv.id);
+    await supabase.from('paiements').delete().eq('rdv_id', rdv.id);
+    await supabase.from('rdv').delete().eq('id', rdv.id);
+    chargerRdv();
+  };
+
+  const openEditRdv = (rdv) => {
+    setEditForm({ date: rdv.date || '', heure: rdv.heure || '', lieu: rdv.lieu || 'labo', statut: rdv.statut || 'en_attente', notes: rdv.notes || '' });
+    setEditRdv(rdv);
+  };
+
+  const sauvegarderEditRdv = async () => {
+    if (!editRdv) return;
+    await supabase.from('rdv').update(editForm).eq('id', editRdv.id);
+    setEditRdv(null);
+    chargerRdv();
   };
 
   const ordonnanceCount = rdvList.filter(r => r.statut_ordonnance === 'en_attente_lecture').length;
@@ -1311,6 +1326,10 @@ export default function RdvPage() {
                           onEncaisser={setEncaisserRdv}
                           onReceipt={setReceiptRdv}
                           onOrdonnance={setOrdonnanceRdv}
+                          onEdit={openEditRdv}
+                          onAnnuler={annulerRdv}
+                          onSupprimer={supprimerRdv}
+                          onConfirmer={confirmerRdv}
                         />
                       </td>
                     </tr>
@@ -1354,6 +1373,58 @@ export default function RdvPage() {
           onClose={() => setResultatsRdv(null)}
           onValidate={validerResultats}
         />
+      )}
+      {editRdv && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditRdv(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#1565C0] px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-white font-bold">Modifier RDV</h2>
+                <p className="text-blue-200 text-sm">{editRdv.nom || 'Patient'}</p>
+              </div>
+              <button onClick={() => setEditRdv(null)} className="w-7 h-7 rounded-full bg-white/20 text-white font-bold hover:bg-white/30 flex items-center justify-center text-lg">×</button>
+            </div>
+            <div className="p-6 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Date</label>
+                <input type="date" value={editForm.date || ''} onChange={e => setEditForm({ ...editForm, date: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Heure</label>
+                <input type="text" value={editForm.heure || ''} onChange={e => setEditForm({ ...editForm, heure: e.target.value })} placeholder="Ex: 09h00"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Lieu</label>
+                <select value={editForm.lieu || 'labo'} onChange={e => setEditForm({ ...editForm, lieu: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
+                  <option value="labo">🏥 Laboratoire</option>
+                  <option value="domicile">🏠 Domicile</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Statut</label>
+                <select value={editForm.statut || 'en_attente'} onChange={e => setEditForm({ ...editForm, statut: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
+                  <option value="en_attente">En attente</option>
+                  <option value="confirme">Confirmé</option>
+                  <option value="annule">Annulé</option>
+                  <option value="termine">Terminé</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Notes</label>
+                <textarea value={editForm.notes || ''} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={2}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0] resize-none" />
+              </div>
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={() => setEditRdv(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm">Annuler</button>
+              <button onClick={sauvegarderEditRdv} className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1]">Sauvegarder</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
