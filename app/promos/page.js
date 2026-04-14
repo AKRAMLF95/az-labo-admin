@@ -1291,10 +1291,25 @@ export default function PromosPage() {
     return matchSearch && matchType && matchCat && matchStat;
   });
 
-  function handleToggle(id) { setPromos(prev => prev.map(p => p.id === id ? { ...p, actif: !p.actif } : p)); }
-  function handleSaveNew(data) { setPromos(prev => [data, ...prev]); }
-  function handleDelete(id) { setPromos(prev => prev.filter(p => p.id !== id)); setDeletePromo(null); }
-  function handleUpdatePromo(updated) { setPromos(prev => prev.map(p => p.id === updated.id ? updated : p)); setLbModal(updated); }
+  async function handleToggle(id) {
+    const p = promos.find(x => x.id === id);
+    if (p) { await supabase.from('promos').update({ actif: !p.actif }).eq('id', id); chargerPromos(); }
+  }
+  async function handleSaveNew(data) {
+    await supabase.from('promos').insert(data);
+    chargerPromos();
+  }
+  async function handleDelete(id) {
+    await supabase.from('promos').delete().eq('id', id);
+    setDeletePromo(null);
+    chargerPromos();
+  }
+  async function handleUpdatePromo(updated) {
+    const { id, ...rest } = updated;
+    await supabase.from('promos').update(rest).eq('id', id);
+    chargerPromos();
+    setLbModal(null);
+  }
 
   const selectCls = "px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-700 outline-none focus:border-[#1565C0] transition-colors";
 

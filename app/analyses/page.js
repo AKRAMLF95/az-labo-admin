@@ -500,24 +500,24 @@ export default function AnalysesPage() {
   async function toggleActif(id) {
     const analyse = analyses.find(a => a.id === id);
     if (!analyse) return;
-    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, actif: !a.actif } : a));
     await supabase.from('analyses').update({ actif: !analyse.actif }).eq('id', id);
+    chargerAnalyses();
   }
 
   async function commitPrix(id, rawVal) {
     const val = Number(rawVal);
     if (val <= 0) { setEditingPrix(null); return; }
-    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, prix: val } : a));
     setEditingPrix(null);
     await supabase.from('analyses').update({ prix: val }).eq('id', id);
+    chargerAnalyses();
   }
 
   async function addConditionToAnalyse(id, label) {
     const analyse = analyses.find(a => a.id === id);
     if (!analyse || analyse.conditions.includes(label)) return;
     const updated = [...analyse.conditions, label];
-    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, conditions: updated } : a));
     await supabase.from('analyses').update({ conditions: updated }).eq('id', id);
+    chargerAnalyses();
   }
 
   async function removeConditionFromAnalyse(id, idx, total) {
@@ -525,14 +525,14 @@ export default function AnalysesPage() {
     const analyse = analyses.find(a => a.id === id);
     if (!analyse) return;
     const updated = analyse.conditions.filter((_, i) => i !== idx);
-    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, conditions: updated } : a));
     await supabase.from('analyses').update({ conditions: updated }).eq('id', id);
+    chargerAnalyses();
   }
 
   async function handleDelete(id) {
     if (window.confirm('Supprimer cette analyse ?')) {
-      setAnalyses(prev => prev.filter(a => a.id !== id));
       await supabase.from('analyses').delete().eq('id', id);
+      chargerAnalyses();
     }
   }
 

@@ -412,9 +412,8 @@ function TechModal({ mode, form, setForm, onSave, onClose }) {
 
         <div className="px-6 py-5 space-y-4">
           {[
-            { key: 'nom',       label: 'Nom complet',         placeholder: 'Ex: Amine Merzougui'       },
-            { key: 'telephone', label: 'Téléphone',           placeholder: '+213 555 000 000'          },
-            { key: 'whatsapp',  label: 'WhatsApp',            placeholder: '+213 555 000 000'          },
+            { key: 'nom',       label: 'Nom complet *',        placeholder: 'Ex: Amine Merzougui'       },
+            { key: 'telephone', label: 'Téléphone *',          placeholder: '+213 555 000 000'          },
             { key: 'zone',      label: 'Zone de couverture',  placeholder: 'Ex: Birkhadem, Kouba...'   },
           ].map(({ key, label, placeholder }) => (
             <div key={key}>
@@ -470,7 +469,7 @@ export default function TechniciensPage() {
   const [selectedTech,  setSelectedTech]  = useState({}); // { rdvId: techId }
   const [viewRdvModal,  setViewRdvModal]  = useState(null); // technicien | null
   const [techModal,     setTechModal]     = useState(null); // null | 'add' | tech
-  const [form,          setForm]          = useState({ nom: '', telephone: '', whatsapp: '', zone: '', statut: 'disponible' });
+  const [form,          setForm]          = useState({ nom: '', telephone: '', zone: '', statut: 'disponible' });
 
   // ── Supabase ──
   useEffect(() => { chargerTechniciens(); }, []);
@@ -488,10 +487,7 @@ export default function TechniciensPage() {
     setLoading(false);
   };
 
-  const ajouterTechnicien = async (formData) => {
-    await supabase.from('techniciens').insert(formData);
-    chargerTechniciens();
-  };
+  // ajouterTechnicien removed — saveTechModal handles insert
 
   const modifierStatut = async (id, statut) => {
     await supabase.from('techniciens').update({ statut }).eq('id', id);
@@ -509,37 +505,48 @@ export default function TechniciensPage() {
     const techId = selectedTech[rdvId];
     if (!techId) return;
 
-    setRdvDomicile(prev => prev.map(r => r.id === rdvId ? { ...r, assignedTo: techId } : r));
-    setTechniciens(prev => prev.map(t =>
-      t.id === techId ? { ...t, rdvAssignes: t.rdvAssignes + 1, statut: t.statut === 'libre' ? 'disponible' : t.statut } : t
-    ));
+    await supabase.from('rdv').update({ technicien_id: techId, technicien_nom: techniciens.find(t => t.id === techId)?.nom || '' }).eq('id', rdvId);
     setSelectedTech(prev => { const n = { ...prev }; delete n[rdvId]; return n; });
+    chargerTechniciens();
   }
 
   // ── Modal technicien ──
   function openAdd() {
-    setForm({ nom: '', telephone: '', whatsapp: '', zone: '', statut: 'disponible' });
+    setForm({ nom: '', telephone: '', zone: '', statut: 'disponible' });
     setTechModal('add');
   }
   function openEdit(tech) {
-    setForm({ nom: tech.nom, telephone: tech.telephone, whatsapp: tech.whatsapp, zone: tech.zone, statut: tech.statut });
+    setForm({ nom: tech.nom || '', telephone: tech.telephone || '', zone: tech.zone || '', statut: tech.statut || 'disponible' });
     setTechModal(tech);
   }
-  function saveTechModal() {
-    if (!form.nom?.trim()) return;
-    if (techModal === 'add') {
-      const newId = techniciens.length > 0 ? Math.max(...techniciens.map(t => t.id)) + 1 : 1;
-      setTechniciens(prev => [...prev, {
-        id: newId, nom: form.nom.trim(), telephone: form.telephone, whatsapp: form.whatsapp,
-        zone: form.zone, statut: form.statut, rdvAssignes: 0, rdvTermines: 0,
-        position: 'Au laboratoire', disponible: true,
-      }]);
-    } else {
-      setTechniciens(prev => prev.map(t =>
-        t.id === techModal.id ? { ...t, nom: form.nom.trim(), telephone: form.telephone, whatsapp: form.whatsapp, zone: form.zone, statut: form.statut } : t
-      ));
+  async function saveTechModal() {
+    if (!form.nom?.trim()) { window.alert('Nom obligatoire'); return; }
+    if (!form.telephone?.trim()) { window.alert('Telephone obligatoire'); return; }
+    const techData = {
+      nom: form.nom.trim(),
+      telephone: form.telephone.trim(),
+      zone: form.zone || null,
+      statut: form.statut || 'disponible',
+      actif: true,
+    };
+    console.log('[Techniciens] Mode:', techModal === 'add' ? 'INSERT' : 'UPDATE', techData);
+    try {
+      if (techModal === 'add') {
+        const { data, error } = await supabase.from('techniciens').insert(techData).select();
+        console.log('[Techniciens] Insert result:', data, 'error:', error);
+        if (error) { window.alert('Erreur: ' + error.message); return; }
+        window.alert('Technicien ajoute !');
+      } else {
+        const { data, error } = await supabase.from('techniciens').update(techData).eq('id', techModal.id).select();
+        console.log('[Techniciens] Update result:', data, 'error:', error);
+        if (error) { window.alert('Erreur: ' + error.message); return; }
+      }
+      setTechModal(null);
+      chargerTechniciens();
+    } catch (err) {
+      console.log('[Techniciens] Error:', err);
+      window.alert('Erreur: ' + (err.message || err));
     }
-    setTechModal(null);
   }
 
   const nonAssignes = rdvDomicile.filter(r => r.assignedTo === null);
