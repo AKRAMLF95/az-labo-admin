@@ -1495,9 +1495,9 @@ export default function RdvPage() {
             </div>
             <div className="p-5 space-y-2 max-h-64 overflow-y-auto">
               {techniciens.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-4">Aucun technicien enregistré</p>
+                <p className="text-center text-gray-400 text-sm py-4">Aucun technicien enregistré. Ajoutez-en dans Techniciens.</p>
               ) : techniciens.map(tech => (
-                <div key={tech.id} onClick={() => setSelectedTech(tech)}
+                <div key={tech.id} onClick={() => { console.log('Tech selected:', tech.nom); setSelectedTech(tech); }}
                   className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
                     selectedTech?.id === tech.id ? 'border-[#1565C0] bg-blue-50' : 'border-gray-100 hover:border-blue-200'
                   }`}>
