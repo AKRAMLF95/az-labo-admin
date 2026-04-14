@@ -823,26 +823,18 @@ export default function RdvPage() {
     chargerRdv();
   };
 
-  // ── Prélèvement workflow ──
-  const confirmerPrelevement = async (rdvId, patientNom) => {
-    if (!confirm(`Confirmer réception prélèvement de ${patientNom} ?`)) return;
-    await supabase.from('rdv').update({
-      statut_prelevement: 'recu',
-      date_prelevement: new Date().toISOString(),
-    }).eq('id', rdvId);
+  // ── Prélèvement workflow (dropdown) ──
+  const changerStatutPrelevement = async (rdvId, nouveauStatut, patientNom) => {
+    const updateData = { statut_prelevement: nouveauStatut };
+    if (nouveauStatut === 'recu') updateData.date_prelevement = new Date().toISOString();
+    await supabase.from('rdv').update(updateData).eq('id', rdvId);
     chargerRdv();
-    alert(`\u2705 Prélèvement reçu \u2014 ${patientNom}`);
-  };
-
-  const lancerAnalyse = async (rdvId, patientNom) => {
-    await supabase.from('rdv').update({ statut_prelevement: 'en_analyse' }).eq('id', rdvId);
-    chargerRdv();
-    alert(`\uD83D\uDD2C Analyse lancée \u2014 ${patientNom}`);
-  };
-
-  const terminerAnalyse = async (rdvId) => {
-    await supabase.from('rdv').update({ statut_prelevement: 'termine' }).eq('id', rdvId);
-    chargerRdv();
+    const messages = {
+      recu:       `Prelevement recu \u2014 ${patientNom}`,
+      en_analyse: `Analyse lancee \u2014 ${patientNom}`,
+      termine:    `Analyse terminee \u2014 ${patientNom}`,
+    };
+    if (messages[nouveauStatut]) alert(messages[nouveauStatut]);
   };
 
   const ordonnanceCount = rdvList.filter(r => r.statut_ordonnance === 'en_attente_lecture').length;
@@ -1027,33 +1019,26 @@ export default function RdvPage() {
 
                       {/* Prélèvement */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        {(() => {
-                          const sp = rdv.statut_prelevement || 'en_attente';
-                          const pCfgPrel = PRELEVEMENT_CONFIG[sp] || PRELEVEMENT_CONFIG.en_attente;
-                          return (
-                            <div className="flex flex-col items-start gap-1.5">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pCfgPrel.cls}`}>{pCfgPrel.label}</span>
-                              {sp === 'en_attente' && rdv.statut !== 'en_attente' && rdv.statut !== 'annule' && (
-                                <button onClick={() => confirmerPrelevement(rdv.id, rdv.nom)}
-                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors whitespace-nowrap shadow-sm">
-                                  ✓ Valider réception
-                                </button>
-                              )}
-                              {sp === 'recu' && (
-                                <button onClick={() => lancerAnalyse(rdv.id, rdv.nom)}
-                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#1565C0] text-white hover:bg-[#0D47A1] transition-colors whitespace-nowrap shadow-sm">
-                                  🔬 Lancer analyse
-                                </button>
-                              )}
-                              {sp === 'en_analyse' && (
-                                <a href="/resultats"
-                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors whitespace-nowrap shadow-sm inline-block">
-                                  ✓ Saisir résultats
-                                </a>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        {rdv.statut === 'annule' ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
+                        ) : (
+                          <select
+                            value={rdv.statut_prelevement || 'en_attente'}
+                            onChange={e => changerStatutPrelevement(rdv.id, e.target.value, rdv.nom)}
+                            className={`text-xs font-semibold pl-2 pr-6 py-1.5 rounded-lg border-0 outline-none cursor-pointer transition-colors appearance-auto ${
+                              { en_attente: 'bg-[#f5f5f5] text-gray-600',
+                                recu:       'bg-[#E3F2FD] text-[#1565C0]',
+                                en_analyse: 'bg-[#FFF3E0] text-orange-700',
+                                termine:    'bg-[#E8F5E9] text-green-700',
+                              }[rdv.statut_prelevement || 'en_attente']
+                            }`}
+                          >
+                            <option value="en_attente">⏳ En attente</option>
+                            <option value="recu">🧪 Prélèvement reçu</option>
+                            <option value="en_analyse">🔬 En analyse</option>
+                            <option value="termine">✓ Analyse terminée</option>
+                          </select>
+                        )}
                       </td>
 
                       {/* Montant */}
