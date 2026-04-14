@@ -572,7 +572,9 @@ export default function TechniciensPage() {
 
   const voirRdvTechnicien = async (tech) => {
     setFicheTech(tech);
-    const { data } = await supabase.from('rdv').select('*, patients(nom, telephone)').eq('technicien_id', tech.id).order('created_at', { ascending: false });
+    console.log('[Fiche] Loading RDV for tech:', tech.id, tech.nom);
+    const { data, error } = await supabase.from('rdv').select('*, patients(nom, telephone)').eq('technicien_id', tech.id).order('created_at', { ascending: false });
+    console.log('[Fiche] RDV:', data?.length, 'error:', error);
     setRdvTech(data || []);
   };
 

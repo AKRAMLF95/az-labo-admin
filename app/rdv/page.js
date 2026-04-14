@@ -1014,11 +1014,13 @@ export default function RdvPage() {
   const confirmerAssignation = async () => {
     if (!techChoisi || !modalAssign) { window.alert('Choisissez un technicien'); return; }
     setLoadingAssign(true);
-    const { error } = await supabase.from('rdv').update({
+    console.log('[Assign] tech:', techChoisi.id, techChoisi.nom, 'rdv:', modalAssign.id);
+    const { data, error } = await supabase.from('rdv').update({
       technicien_id: techChoisi.id,
       technicien_nom: techChoisi.nom,
       statut_prelevement: 'assigne',
-    }).eq('id', modalAssign.id);
+    }).eq('id', modalAssign.id).select();
+    console.log('[Assign] result:', data, 'error:', error);
     if (error) { window.alert('Erreur: ' + error.message); setLoadingAssign(false); return; }
     setLoadingAssign(false);
     const nom = techChoisi.nom;
