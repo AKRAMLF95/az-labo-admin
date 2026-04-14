@@ -114,10 +114,47 @@ const STATUT_CONFIG = {
 };
 
 const PRELEVEMENT_CONFIG = {
-  en_attente: { label: '⏳ En attente', cls: 'bg-gray-100 text-gray-500'    },
-  recu:       { label: '🧪 Reçu',      cls: 'bg-[#E3F2FD] text-[#1565C0]' },
-  en_analyse: { label: '🔬 En analyse', cls: 'bg-orange-100 text-orange-700'},
-  termine:    { label: '✓ Terminé',     cls: 'bg-green-100 text-green-700'  },
+  en_attente:     { label: '⏳ En attente',    cls: 'bg-gray-100 text-gray-500'     },
+  recu:           { label: '🧪 Reçu',         cls: 'bg-[#E3F2FD] text-[#1565C0]'  },
+  en_analyse:     { label: '🔬 En analyse',    cls: 'bg-orange-100 text-orange-700' },
+  termine:        { label: '✓ Terminé',        cls: 'bg-green-100 text-green-700'   },
+  resultat_saisi: { label: '📊 Résultat saisi',cls: 'bg-purple-100 text-purple-700' },
+};
+
+const REFERENCES = {
+  'NFS':                { unite: 'G/L',     ref: '4–10'    },
+  'Hémogramme':         { unite: 'G/L',     ref: '4–10'    },
+  'VS':                 { unite: 'mm/h',    ref: '<20'     },
+  'Glycémie à jeun':    { unite: 'mmol/L',  ref: '3.9–5.5' },
+  'HbA1c':              { unite: '%',       ref: '<5.7'    },
+  'Cholestérol total':  { unite: 'mmol/L',  ref: '<5.2'    },
+  'HDL':                { unite: 'mmol/L',  ref: '>1.0'    },
+  'LDL':                { unite: 'mmol/L',  ref: '<3.4'    },
+  'Triglycérides':      { unite: 'mmol/L',  ref: '<1.7'    },
+  'Créatinine':         { unite: 'µmol/L',  ref: '62–106'  },
+  'Urée':               { unite: 'mmol/L',  ref: '2.5–7.5' },
+  'Acide urique':       { unite: 'µmol/L',  ref: '150–420' },
+  'ASAT':               { unite: 'UI/L',    ref: '<40'     },
+  'ALAT':               { unite: 'UI/L',    ref: '<45'     },
+  'GGT':                { unite: 'UI/L',    ref: '<55'     },
+  'Fer sérique':        { unite: 'µmol/L',  ref: '10–30'   },
+  'Ferritine':          { unite: 'ng/mL',   ref: '20–300'  },
+  'Calcium':            { unite: 'mmol/L',  ref: '2.15–2.55'},
+  'Sodium':             { unite: 'mmol/L',  ref: '136–145' },
+  'Potassium':          { unite: 'mmol/L',  ref: '3.5–5.0' },
+  'CRP':                { unite: 'mg/L',    ref: '<5'      },
+  'TSH':                { unite: 'mUI/L',   ref: '0.4–4.0' },
+  'T3 libre':           { unite: 'pmol/L',  ref: '3.5–6.5' },
+  'T4 libre':           { unite: 'pmol/L',  ref: '10–20'   },
+  'FSH':                { unite: 'UI/L',    ref: '1.5–12'  },
+  'LH':                 { unite: 'UI/L',    ref: '1.7–8.6' },
+  'Prolactine':         { unite: 'ng/mL',   ref: '4–23'    },
+  'Testostérone':       { unite: 'ng/dL',   ref: '270–1070' },
+  'Beta HCG':           { unite: 'UI/L',    ref: '<5'      },
+  'PSA total':          { unite: 'ng/mL',   ref: '<4'      },
+  'HIV 1&2':            { unite: '',        ref: 'Négatif' },
+  'Hépatite B (AgHBs)': { unite: '',        ref: 'Négatif' },
+  'Hépatite C':         { unite: '',        ref: 'Négatif' },
 };
 
 const LIEU_CONFIG = {
@@ -596,6 +633,128 @@ function ActionCell({ rdv, onDetails, onEncaisser, onReceipt, onOrdonnance }) {
 }
 
 /* ─── Modal lecture ordonnance ───────────────────────────────────── */
+/* ─── Modal saisie résultats ─────────────────────────────────────── */
+function ResultatsModal({ rdv, onClose, onValidate }) {
+  const analyses = rdv.analyses || [];
+  const patientNom = rdv.patients?.nom || rdv.nom || 'Patient';
+  const [valeurs, setValeurs] = useState(
+    analyses.map(nom => {
+      const r = REFERENCES[nom] || { unite: '', ref: '' };
+      return { nom, valeur: '', unite: r.unite, ref: r.ref, statut: 'normal' };
+    })
+  );
+  const [saving, setSaving] = useState(false);
+
+  const updateVal = (i, field, val) => {
+    setValeurs(prev => prev.map((v, idx) => idx === i ? { ...v, [field]: val } : v));
+  };
+
+  const allFilled = valeurs.every(v => v.valeur.trim() !== '');
+
+  const handleValidate = async () => {
+    if (!allFilled) return;
+    setSaving(true);
+    await onValidate(rdv.id, rdv.patient_id, valeurs);
+    setSaving(false);
+    onClose();
+  };
+
+  const STATUT_OPTIONS = [
+    { key: 'normal', label: 'Normal',  cls: 'bg-green-100 text-green-700 border-green-300' },
+    { key: 'eleve',  label: 'Élevé',   cls: 'bg-red-100 text-red-600 border-red-300'      },
+    { key: 'bas',    label: 'Bas',      cls: 'bg-blue-100 text-blue-600 border-blue-300'   },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="bg-[#1565C0] px-6 py-4 shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-white font-bold text-base flex items-center gap-2">
+                <span>📝</span> Saisir les résultats
+              </h2>
+              <p className="text-blue-200 text-sm mt-0.5">Patient : {patientNom}</p>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 rounded-full bg-white/20 text-white font-bold hover:bg-white/30 transition-colors flex items-center justify-center text-lg leading-none">×</button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {analyses.map(a => (
+              <span key={a} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white">{a}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {valeurs.map((v, i) => {
+            const ref = REFERENCES[v.nom] || { unite: '', ref: '' };
+            return (
+              <div key={i} className="bg-gray-50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-sm text-gray-800">{v.nom}</p>
+                  {ref.ref && <span className="text-[10px] text-gray-400 font-medium">Réf : {ref.ref} {ref.unite}</span>}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={v.valeur}
+                    onChange={e => updateVal(i, 'valeur', e.target.value)}
+                    placeholder="Valeur"
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold focus:outline-none focus:border-[#1565C0] focus:ring-2 focus:ring-[#1565C0]/10 transition"
+                  />
+                  <input
+                    type="text"
+                    value={v.unite}
+                    onChange={e => updateVal(i, 'unite', e.target.value)}
+                    placeholder="Unité"
+                    className="w-24 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 focus:outline-none focus:border-[#1565C0] transition"
+                  />
+                </div>
+
+                <div className="flex gap-1.5">
+                  {STATUT_OPTIONS.map(s => (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() => updateVal(i, 'statut', s.key)}
+                      className={`flex-1 text-xs font-semibold py-1.5 rounded-lg border transition-all ${
+                        v.statut === s.key
+                          ? s.cls + ' border-current shadow-sm'
+                          : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {v.statut === s.key && '● '}{s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {analyses.length === 0 && (
+            <p className="text-center text-gray-400 text-sm py-8">Aucune analyse liée à ce RDV</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 pt-3 flex gap-3 shrink-0 border-t border-gray-100">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">
+            Annuler
+          </button>
+          <button onClick={handleValidate} disabled={!allFilled || saving}
+            className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-semibold text-sm hover:bg-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            {saving ? 'Enregistrement...' : `✓ Valider résultats (${valeurs.length})`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OrdonnanceModal({ rdv, analysesList, onClose, onValidate }) {
   const [selected, setSelected] = useState([]);
   const [search, setSearch] = useState('');
@@ -738,6 +897,7 @@ export default function RdvPage() {
   const [encaisserRdv,   setEncaisserRdv]   = useState(null);
   const [receiptRdv,     setReceiptRdv]     = useState(null);
   const [ordonnanceRdv,  setOrdonnanceRdv]  = useState(null);
+  const [resultatsRdv,   setResultatsRdv]   = useState(null);
   const [analysesList,   setAnalysesList]   = useState([]);
 
   // ── Supabase ──
@@ -837,6 +997,30 @@ export default function RdvPage() {
     if (messages[nouveauStatut]) alert(messages[nouveauStatut]);
   };
 
+  // ── Saisie résultats ──
+  const validerResultats = async (rdvId, patientId, valeurs) => {
+    const anomalies = valeurs.filter(v => v.statut !== 'normal').length;
+    const lienToken = `AZ-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+    const { error } = await supabase.from('resultats').insert({
+      rdv_id: rdvId,
+      patient_id: patientId,
+      valeurs,
+      statut: 'valide',
+      anomalies,
+      lien_token: lienToken,
+      valide_par: 'Dr. Meziane',
+    });
+
+    if (!error) {
+      await supabase.from('rdv').update({ statut_prelevement: 'resultat_saisi' }).eq('id', rdvId);
+      chargerRdv();
+      alert('Resultats saisis !\nAllez dans Resultats pour envoyer au patient.');
+    } else {
+      alert('Erreur : ' + error.message);
+    }
+  };
+
   const ordonnanceCount = rdvList.filter(r => r.statut_ordonnance === 'en_attente_lecture').length;
 
   // Prélèvement stats
@@ -844,7 +1028,8 @@ export default function RdvPage() {
   const prelRecu      = rdvList.filter(r => r.statut_prelevement === 'recu').length;
   const prelAnalyse   = rdvList.filter(r => r.statut_prelevement === 'en_analyse').length;
   const prelTermine   = rdvList.filter(r => r.statut_prelevement === 'termine').length;
-  const showPrelCard  = prelEnAttente + prelRecu + prelAnalyse + prelTermine > 0;
+  const prelResultat  = rdvList.filter(r => r.statut_prelevement === 'resultat_saisi').length;
+  const showPrelCard  = prelEnAttente + prelRecu + prelAnalyse + prelTermine + prelResultat > 0;
 
   const filtered = rdvList.filter(rdv => {
     const q = search.toLowerCase().trim();
@@ -901,12 +1086,13 @@ export default function RdvPage() {
               <span className="text-base">🧪</span>
               <h2 className="font-bold text-[#111] text-sm">Prélèvements du jour</h2>
             </div>
-            <div className="grid grid-cols-4 divide-x divide-gray-100">
+            <div className="grid grid-cols-5 divide-x divide-gray-100">
               {[
                 { label: 'En attente validation', value: prelEnAttente, icon: '⏳', color: 'text-gray-600'   },
                 { label: 'Reçus au labo',          value: prelRecu,      icon: '🧪', color: 'text-[#1565C0]' },
                 { label: 'En analyse',             value: prelAnalyse,   icon: '🔬', color: 'text-orange-600'},
-                { label: 'Terminés',               value: prelTermine,   icon: '✓',  color: 'text-green-600' },
+                { label: 'Terminés',               value: prelTermine,   icon: '✓',  color: 'text-green-600'  },
+                { label: 'Résultats saisis',       value: prelResultat,  icon: '📊', color: 'text-purple-600' },
               ].map(s => (
                 <div key={s.label} className="px-4 py-3 text-center">
                   <span className="text-lg">{s.icon}</span>
@@ -1022,22 +1208,32 @@ export default function RdvPage() {
                         {rdv.statut === 'annule' ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
                         ) : (
-                          <select
-                            value={rdv.statut_prelevement || 'en_attente'}
-                            onChange={e => changerStatutPrelevement(rdv.id, e.target.value, rdv.nom)}
-                            className={`text-xs font-semibold pl-2 pr-6 py-1.5 rounded-lg border-0 outline-none cursor-pointer transition-colors appearance-auto ${
-                              { en_attente: 'bg-[#f5f5f5] text-gray-600',
-                                recu:       'bg-[#E3F2FD] text-[#1565C0]',
-                                en_analyse: 'bg-[#FFF3E0] text-orange-700',
-                                termine:    'bg-[#E8F5E9] text-green-700',
-                              }[rdv.statut_prelevement || 'en_attente']
-                            }`}
-                          >
-                            <option value="en_attente">⏳ En attente</option>
-                            <option value="recu">🧪 Prélèvement reçu</option>
-                            <option value="en_analyse">🔬 En analyse</option>
-                            <option value="termine">✓ Analyse terminée</option>
-                          </select>
+                          <div className="flex flex-col items-start gap-1.5">
+                            <select
+                              value={rdv.statut_prelevement || 'en_attente'}
+                              onChange={e => changerStatutPrelevement(rdv.id, e.target.value, rdv.nom)}
+                              className={`text-xs font-semibold pl-2 pr-6 py-1.5 rounded-lg border-0 outline-none cursor-pointer transition-colors appearance-auto ${
+                                { en_attente:     'bg-[#f5f5f5] text-gray-600',
+                                  recu:           'bg-[#E3F2FD] text-[#1565C0]',
+                                  en_analyse:     'bg-[#FFF3E0] text-orange-700',
+                                  termine:        'bg-[#E8F5E9] text-green-700',
+                                  resultat_saisi: 'bg-purple-100 text-purple-700',
+                                }[rdv.statut_prelevement || 'en_attente']
+                              }`}
+                            >
+                              <option value="en_attente">⏳ En attente</option>
+                              <option value="recu">🧪 Prélèvement reçu</option>
+                              <option value="en_analyse">🔬 En analyse</option>
+                              <option value="termine">✓ Analyse terminée</option>
+                              <option value="resultat_saisi">📊 Résultat saisi</option>
+                            </select>
+                            {rdv.statut_prelevement === 'termine' && (
+                              <button onClick={() => setResultatsRdv(rdv)}
+                                className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors whitespace-nowrap shadow-sm">
+                                📝 Saisir résultats
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
 
@@ -1112,6 +1308,13 @@ export default function RdvPage() {
           analysesList={analysesList}
           onClose={() => setOrdonnanceRdv(null)}
           onValidate={validerOrdonnance}
+        />
+      )}
+      {resultatsRdv && (
+        <ResultatsModal
+          rdv={resultatsRdv}
+          onClose={() => setResultatsRdv(null)}
+          onValidate={validerResultats}
         />
       )}
     </>
