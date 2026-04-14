@@ -664,10 +664,17 @@ export default function RolesPage() {
   };
 
   const ajouterUser = async (formData) => {
-    const { error } = await supabase.from('users_admin').insert(formData);
+    // Ne garder que les colonnes existantes dans users_admin
+    const { error } = await supabase.from('users_admin').insert({
+      nom: formData.nom || '',
+      email: formData.email || '',
+      telephone: formData.telephone || '',
+      role: formData.role || 'secretaire',
+      actif: true,
+    });
     if (error) { alert('Erreur : ' + error.message); return; }
     chargerUsers();
-    alert('Compte créé pour ' + formData.nom + ' !');
+    alert('Compte créé pour ' + (formData.nom || 'utilisateur') + ' !');
   };
 
   const modifierRole = async (id, role) => {
