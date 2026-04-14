@@ -887,7 +887,7 @@ export default function RdvPage() {
   const [editForm,       setEditForm]       = useState({});
   const [techniciens,    setTechniciens]    = useState([]);
   const [modalAssign,    setModalAssign]    = useState(null);
-  const [selectedTech,   setSelectedTech]   = useState(null);
+  const [techSelectId,   setTechSelectId]   = useState(null);
   const [modalNvRdv,     setModalNvRdv]     = useState(false);
   const [nvRdv,          setNvRdv]          = useState({ patient_search: '', patient_id: null, patient_nom: '', patient_tel: '', analyses: [], lieu: 'labo', adresse: '', date: '', heure: '', sous_total: 0, frais_deplacement: 0, total: 0, mode_paiement: 'cash' });
   const [patientSuggs,   setPatientSuggs]   = useState([]);
@@ -1011,16 +1011,20 @@ export default function RdvPage() {
 
   // ── Assignation technicien ──
   const confirmerAssignation = async () => {
-    if (!selectedTech || !modalAssign) return;
-    await supabase.from('rdv').update({
-      technicien_id: selectedTech.id,
-      technicien_nom: selectedTech.nom,
+    if (!techSelectId || !modalAssign) return;
+    const tech = techniciens.find(t => t.id === techSelectId);
+    if (!tech) return;
+    const { error } = await supabase.from('rdv').update({
+      technicien_id: tech.id,
+      technicien_nom: tech.nom,
       statut_prelevement: 'assigne',
     }).eq('id', modalAssign.id);
-    await supabase.from('techniciens').update({ statut: 'en_mission' }).eq('id', selectedTech.id).catch(() => {});
+    if (error) { window.alert('Erreur: ' + error.message); return; }
+    await supabase.from('techniciens').update({ statut: 'en_mission' }).eq('id', tech.id).catch(() => {});
     setModalAssign(null);
-    setSelectedTech(null);
+    setTechSelectId(null);
     chargerRdv();
+    window.alert(tech.nom + ' assigne !');
   };
 
   const chargerTechniciens = async () => {
@@ -1213,7 +1217,7 @@ export default function RdvPage() {
                   <span className="text-sm font-bold">{rdv.nom || 'Patient'}</span>
                   <span className="text-xs text-gray-500 ml-2">{rdv.heure || '—'} — {rdv.notes || 'Domicile'}</span>
                 </div>
-                <button onClick={() => { setModalAssign(rdv); setSelectedTech(null); }}
+                <button onClick={() => { setModalAssign(rdv); setTechSelectId(null); }}
                   className="bg-[#1565C0] text-white text-xs px-3 py-1 rounded-lg font-bold hover:bg-[#0D47A1]">Assigner</button>
               </div>
             ))}
@@ -1336,7 +1340,7 @@ export default function RdvPage() {
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${lieu.cls}`}>{lieu.label}</span>
                         {rdv.lieu === 'domicile' && (
                           <button
-                            onClick={() => { setModalAssign(rdv); setSelectedTech(null); }}
+                            onClick={() => { setModalAssign(rdv); setTechSelectId(null); }}
                             className={`ml-2 text-xs font-bold px-3 py-1.5 rounded-lg ${
                               rdv.technicien_nom
                                 ? 'bg-green-600 text-white hover:bg-green-700'
@@ -1384,7 +1388,7 @@ export default function RdvPage() {
                             </select>
                             {rdv.technicien_nom && <span className="text-[10px] text-blue-600 font-semibold">🚗 {rdv.technicien_nom}</span>}
                             {rdv.lieu === 'domicile' && (rdv.statut_prelevement === 'en_attente' || !rdv.technicien_nom) && (
-                              <button onClick={() => { setModalAssign(rdv); setSelectedTech(null); }}
+                              <button onClick={() => { setModalAssign(rdv); setTechSelectId(null); }}
                                 className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors whitespace-nowrap shadow-sm">
                                 🚗 Assigner
                               </button>
@@ -1497,9 +1501,9 @@ export default function RdvPage() {
               {techniciens.length === 0 ? (
                 <p className="text-center text-gray-400 text-sm py-4">Aucun technicien enregistré. Ajoutez-en dans Techniciens.</p>
               ) : techniciens.map(tech => (
-                <div key={tech.id} onClick={() => { console.log('Tech selected:', tech.nom); setSelectedTech(tech); }}
+                <div key={tech.id} onClick={() => setTechSelectId(tech.id)}
                   className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                    selectedTech?.id === tech.id ? 'border-[#1565C0] bg-blue-50' : 'border-gray-100 hover:border-blue-200'
+                    techSelectId === tech.id ? 'border-[#1565C0] bg-blue-50' : 'border-gray-100 hover:border-blue-200'
                   }`}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700 text-sm">
@@ -1520,8 +1524,8 @@ export default function RdvPage() {
             </div>
             <div className="px-5 pb-5 flex gap-3">
               <button onClick={() => setModalAssign(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm">Annuler</button>
-              <button onClick={confirmerAssignation} disabled={!selectedTech}
-                className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm disabled:opacity-40 hover:bg-[#0D47A1]">
+              <button onClick={confirmerAssignation} disabled={!techSelectId}
+                className={`flex-1 py-2.5 rounded-xl font-semibold text-sm ${techSelectId ? 'bg-[#1565C0] text-white hover:bg-[#0D47A1]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
                 Confirmer
               </button>
             </div>

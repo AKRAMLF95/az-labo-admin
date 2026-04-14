@@ -179,7 +179,7 @@ function SimulatedMap({ techniciens }) {
 }
 
 // ─── Carte technicien ─────────────────────────────────────────────────────────
-function TechCard({ tech, onViewRdv, onEdit, onDelete }) {
+function TechCard({ tech, onViewRdv, onEdit, onDelete, onFiche }) {
   const col       = getColor(tech.id);
   const statutCfg = STATUT_CFG[tech.statut] ?? STATUT_CFG.libre;
   const total     = tech.rdvAssignes + tech.rdvTermines;
@@ -264,6 +264,12 @@ function TechCard({ tech, onViewRdv, onEdit, onDelete }) {
           className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-semibold"
         >
           ✏️
+        </button>
+        <button
+          onClick={() => onFiche(tech)}
+          className="px-3 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-semibold"
+        >
+          📋
         </button>
         <button
           onClick={() => onDelete(tech.id, tech.nom)}
@@ -473,8 +479,10 @@ export default function TechniciensPage() {
   const [rdvDomicile,   setRdvDomicile]   = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [selectedTech,  setSelectedTech]  = useState({}); // { rdvId: techId }
-  const [viewRdvModal,  setViewRdvModal]  = useState(null); // technicien | null
-  const [techModal,     setTechModal]     = useState(null); // null | 'add' | tech
+  const [viewRdvModal,  setViewRdvModal]  = useState(null);
+  const [techModal,     setTechModal]     = useState(null);
+  const [ficheTech,     setFicheTech]     = useState(null);
+  const [rdvTech,       setRdvTech]       = useState([]);
   const [form,          setForm]          = useState({ nom: '', telephone: '', zone: '', statut: 'disponible' });
 
   // ── Supabase ──
@@ -562,6 +570,12 @@ export default function TechniciensPage() {
     await chargerTechniciens();
   };
 
+  const voirRdvTechnicien = async (tech) => {
+    setFicheTech(tech);
+    const { data } = await supabase.from('rdv').select('*, patients(nom, telephone)').eq('technicien_id', tech.id).order('created_at', { ascending: false });
+    setRdvTech(data || []);
+  };
+
   const nonAssignes = rdvDomicile.filter(r => r.assignedTo === null);
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm font-medium">Chargement…</div>;
@@ -609,6 +623,7 @@ export default function TechniciensPage() {
               onViewRdv={setViewRdvModal}
               onEdit={openEdit}
               onDelete={supprimerTechnicien}
+              onFiche={voirRdvTechnicien}
             />
           ))}
         </div>
@@ -674,6 +689,47 @@ export default function TechniciensPage() {
           onSave={saveTechModal}
           onClose={() => setTechModal(null)}
         />
+      )}
+      {ficheTech && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setFicheTech(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#1565C0] px-6 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-lg">{(ficheTech.nom || '??').slice(0, 2).toUpperCase()}</div>
+                <div>
+                  <p className="text-white font-black text-lg">{ficheTech.nom}</p>
+                  <p className="text-blue-200 text-sm">{ficheTech.telephone || '—'} — {ficheTech.zone || 'Zone non définie'}</p>
+                </div>
+              </div>
+              <button onClick={() => setFicheTech(null)} className="w-7 h-7 rounded-full bg-white/20 text-white font-bold hover:bg-white/30 flex items-center justify-center text-lg">×</button>
+            </div>
+            <div className="grid grid-cols-3 gap-3 p-5 shrink-0">
+              <div className="bg-blue-50 rounded-xl p-3 text-center"><p className="text-2xl font-black text-[#1565C0]">{rdvTech.length}</p><p className="text-[10px] text-gray-500">Total RDV</p></div>
+              <div className="bg-green-50 rounded-xl p-3 text-center"><p className="text-2xl font-black text-green-600">{rdvTech.filter(r => r.statut_prelevement === 'termine' || r.statut_prelevement === 'resultat_saisi').length}</p><p className="text-[10px] text-gray-500">Terminés</p></div>
+              <div className="bg-orange-50 rounded-xl p-3 text-center"><p className="text-2xl font-black text-orange-600">{rdvTech.filter(r => r.statut_prelevement === 'assigne').length}</p><p className="text-[10px] text-gray-500">En cours</p></div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-2">
+              <p className="font-bold text-sm text-gray-700 mb-1">RDV assignés :</p>
+              {rdvTech.length === 0 ? (
+                <p className="text-center py-6 text-gray-400 text-sm">Aucun RDV assigné</p>
+              ) : rdvTech.map(rdv => (
+                <div key={rdv.id} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                  <div className="flex justify-between items-start">
+                    <div><p className="font-bold text-sm">{rdv.patients?.nom || 'Patient'}</p><p className="text-xs text-gray-500">{rdv.patients?.telephone || '—'}</p></div>
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                      rdv.statut_prelevement === 'assigne' ? 'bg-blue-100 text-blue-700' :
+                      rdv.statut_prelevement === 'termine' || rdv.statut_prelevement === 'resultat_saisi' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    }`}>{rdv.statut_prelevement === 'assigne' ? '🚗 Assigné' : rdv.statut_prelevement === 'termine' ? '✓ Terminé' : rdv.statut_prelevement || '—'}</span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                    <p>📅 {rdv.date || '—'} — {rdv.heure || '—'}</p>
+                    <p>📍 {rdv.notes || 'Domicile'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
