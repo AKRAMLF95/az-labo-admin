@@ -114,10 +114,10 @@ const STATUT_CONFIG = {
 };
 
 const PRELEVEMENT_CONFIG = {
-  en_attente: { label: '⏳ En attente', cls: 'bg-gray-100 text-gray-500'     },
-  recu:       { label: '✓ Reçu',       cls: 'bg-[#E3F2FD] text-[#1565C0]'  },
-  en_analyse: { label: '🔬 En analyse',cls: 'bg-orange-100 text-orange-700' },
-  termine:    { label: '✓ Terminé',     cls: 'bg-green-100 text-green-700'   },
+  en_attente: { label: '⏳ En attente', cls: 'bg-gray-100 text-gray-500'    },
+  recu:       { label: '🧪 Reçu',      cls: 'bg-[#E3F2FD] text-[#1565C0]' },
+  en_analyse: { label: '🔬 En analyse', cls: 'bg-orange-100 text-orange-700'},
+  termine:    { label: '✓ Terminé',     cls: 'bg-green-100 text-green-700'  },
 };
 
 const LIEU_CONFIG = {
@@ -825,18 +825,19 @@ export default function RdvPage() {
 
   // ── Prélèvement workflow ──
   const confirmerPrelevement = async (rdvId, patientNom) => {
-    if (!confirm(`Confirmer la réception du prélèvement de ${patientNom} ?`)) return;
+    if (!confirm(`Confirmer réception prélèvement de ${patientNom} ?`)) return;
     await supabase.from('rdv').update({
       statut_prelevement: 'recu',
       date_prelevement: new Date().toISOString(),
     }).eq('id', rdvId);
     chargerRdv();
-    alert('Prélèvement confirmé pour ' + patientNom);
+    alert(`\u2705 Prélèvement reçu \u2014 ${patientNom}`);
   };
 
-  const lancerAnalyse = async (rdvId) => {
+  const lancerAnalyse = async (rdvId, patientNom) => {
     await supabase.from('rdv').update({ statut_prelevement: 'en_analyse' }).eq('id', rdvId);
     chargerRdv();
+    alert(`\uD83D\uDD2C Analyse lancée \u2014 ${patientNom}`);
   };
 
   const terminerAnalyse = async (rdvId) => {
@@ -845,6 +846,13 @@ export default function RdvPage() {
   };
 
   const ordonnanceCount = rdvList.filter(r => r.statut_ordonnance === 'en_attente_lecture').length;
+
+  // Prélèvement stats
+  const prelEnAttente = rdvList.filter(r => (r.statut_prelevement || 'en_attente') === 'en_attente' && r.statut !== 'en_attente' && r.statut !== 'annule').length;
+  const prelRecu      = rdvList.filter(r => r.statut_prelevement === 'recu').length;
+  const prelAnalyse   = rdvList.filter(r => r.statut_prelevement === 'en_analyse').length;
+  const prelTermine   = rdvList.filter(r => r.statut_prelevement === 'termine').length;
+  const showPrelCard  = prelEnAttente + prelRecu + prelAnalyse + prelTermine > 0;
 
   const filtered = rdvList.filter(rdv => {
     const q = search.toLowerCase().trim();
@@ -893,6 +901,30 @@ export default function RdvPage() {
             </div>
           ))}
         </div>
+
+        {/* ── Prélèvements du jour ── */}
+        {showPrelCard && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+              <span className="text-base">🧪</span>
+              <h2 className="font-bold text-[#111] text-sm">Prélèvements du jour</h2>
+            </div>
+            <div className="grid grid-cols-4 divide-x divide-gray-100">
+              {[
+                { label: 'En attente validation', value: prelEnAttente, icon: '⏳', color: 'text-gray-600'   },
+                { label: 'Reçus au labo',          value: prelRecu,      icon: '🧪', color: 'text-[#1565C0]' },
+                { label: 'En analyse',             value: prelAnalyse,   icon: '🔬', color: 'text-orange-600'},
+                { label: 'Terminés',               value: prelTermine,   icon: '✓',  color: 'text-green-600' },
+              ].map(s => (
+                <div key={s.label} className="px-4 py-3 text-center">
+                  <span className="text-lg">{s.icon}</span>
+                  <p className={`text-2xl font-black ${s.color} mt-0.5`}>{s.value}</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Barre recherche + filtres ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 space-y-4">
@@ -1001,23 +1033,23 @@ export default function RdvPage() {
                           return (
                             <div className="flex flex-col items-start gap-1.5">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pCfgPrel.cls}`}>{pCfgPrel.label}</span>
-                              {sp === 'en_attente' && rdv.statut !== 'en_attente' && (
+                              {sp === 'en_attente' && rdv.statut !== 'en_attente' && rdv.statut !== 'annule' && (
                                 <button onClick={() => confirmerPrelevement(rdv.id, rdv.nom)}
-                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors whitespace-nowrap">
-                                  ✓ Prélèvement reçu
+                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors whitespace-nowrap shadow-sm">
+                                  ✓ Valider réception
                                 </button>
                               )}
                               {sp === 'recu' && (
-                                <button onClick={() => lancerAnalyse(rdv.id)}
-                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#E3F2FD] text-[#1565C0] hover:bg-[#BBDEFB] transition-colors whitespace-nowrap">
+                                <button onClick={() => lancerAnalyse(rdv.id, rdv.nom)}
+                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#1565C0] text-white hover:bg-[#0D47A1] transition-colors whitespace-nowrap shadow-sm">
                                   🔬 Lancer analyse
                                 </button>
                               )}
                               {sp === 'en_analyse' && (
-                                <button onClick={() => terminerAnalyse(rdv.id)}
-                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors whitespace-nowrap">
-                                  ✓ Analyse terminée
-                                </button>
+                                <a href="/resultats"
+                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors whitespace-nowrap shadow-sm inline-block">
+                                  ✓ Saisir résultats
+                                </a>
                               )}
                             </div>
                           );
