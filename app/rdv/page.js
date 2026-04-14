@@ -902,7 +902,12 @@ export default function RdvPage() {
   const [historique,     setHistorique]     = useState([]);
 
   // ── Supabase ──
-  useEffect(() => { chargerRdv(); chargerAnalyses(); chargerHistorique(); }, []);
+  useEffect(() => {
+    chargerRdv(); chargerAnalyses(); chargerHistorique();
+    // Auto-refresh toutes les 30 secondes
+    const interval = setInterval(() => { chargerRdv(); chargerHistorique(); }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const chargerRdv = async () => {
     setLoading(true);
