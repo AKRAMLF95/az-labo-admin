@@ -631,63 +631,82 @@ export default function RolesPage() {
 
   const chargerUsers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('utilisateurs')
-      .select('*')
-      .order('role_id');
-    if (!error) setUsers(data || []);
+    try {
+      const { data, error } = await supabase
+        .from('users_admin')
+        .select('*')
+        .order('role');
+      if (error) throw error;
+      // Normalize for UI
+      const normalized = (data || []).map(u => ({
+        ...u,
+        dernierConnexion: '—',
+        dateCreation: u.created_at ? new Date(u.created_at).toLocaleDateString('fr-DZ') : '—',
+      }));
+      setUsers(normalized);
+    } catch (err) {
+      console.error('chargerUsers error:', err);
+      setUsers([]);
+    }
     setLoading(false);
   };
 
   const chargerActivite = async () => {
-    const { data } = await supabase
-      .from('activite_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (data) setActivite(data);
+    // activite_log table may not exist yet — fail silently
+    try {
+      const { data } = await supabase
+        .from('activite_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (data) setActivite(data);
+    } catch { setActivite([]); }
   };
 
   const ajouterUser = async (formData) => {
-    await supabase.from('utilisateurs').insert(formData);
+    const { error } = await supabase.from('users_admin').insert(formData);
+    if (error) { alert('Erreur : ' + error.message); return; }
+    chargerUsers();
+    alert('Compte créé pour ' + formData.nom + ' !');
+  };
+
+  const modifierRole = async (id, role) => {
+    await supabase.from('users_admin').update({ role }).eq('id', id);
     chargerUsers();
   };
 
-  const modifierRole = async (id, role_id) => {
-    await supabase.from('utilisateurs').update({ role_id }).eq('id', id);
+  const toggleActif = async (id, actif) => {
+    await supabase.from('users_admin').update({ actif: !actif }).eq('id', id);
+    chargerUsers();
+  };
+
+  const supprimerUser = async (id) => {
+    await supabase.from('users_admin').delete().eq('id', id);
     chargerUsers();
   };
 
   /* Stats */
-  const today = users.filter(u => u.dernierConnexion?.startsWith('Auj.'));
-  const superAdmins = users.filter(u => u.role_id === 'super_admin');
+  const actifs = users.filter(u => u.actif);
+  const superAdmins = users.filter(u => u.role === 'super_admin');
   const techniciens = users.filter(u => u.role === 'technicien');
 
   function handleAddUser(data) {
-    const newUser = {
-      id: Date.now(), ...data, actif: true,
-      dernierConnexion: 'Jamais', dateCreation: new Date().toLocaleDateString('fr-DZ'),
-    };
-    setUsers(prev => [...prev, newUser]);
-    setActivite(prev => [{
-      id: Date.now(), user: 'Dr. Meziane Kamel',
-      action: `Nouveau utilisateur créé : ${data.nom}`,
-      date: 'Auj.', ip: '192.168.1.x',
-    }, ...prev]);
+    ajouterUser(data);
   }
 
   function handleEditRole(userId, newRole) {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    modifierRole(userId, newRole);
   }
 
   function handleToggleActif(userId) {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, actif: !u.actif } : u));
+    const user = users.find(u => u.id === userId);
+    if (user) toggleActif(userId, user.actif);
   }
 
   /* Filter */
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
-    const matchSearch = !q || u.nom.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    const matchSearch = !q || (u.nom || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
     const matchRole = !roleFilter || u.role === roleFilter;
     return matchSearch && matchRole;
   });
@@ -708,7 +727,7 @@ export default function RolesPage() {
       <div className="grid grid-cols-4 gap-4">
         {[
           { label: 'Total utilisateurs',  value: users.length,       icon: '👥', color: 'text-[#1565C0]',  bg: 'bg-blue-50',   border: 'border-blue-100'   },
-          { label: 'Actifs aujourd\'hui', value: today.length,        icon: '🟢', color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-100'  },
+          { label: 'Comptes actifs',       value: actifs.length,       icon: '🟢', color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-100'  },
           { label: 'Super admins',         value: superAdmins.length, icon: '👑', color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-100' },
           { label: 'Techniciens terrain',  value: techniciens.length, icon: '🚗', color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100'   },
         ].map(({ label, value, icon, color, bg, border }) => (
