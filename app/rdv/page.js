@@ -113,6 +113,13 @@ const STATUT_CONFIG = {
   annule:     { label: '✗ Annulé',    cls: 'bg-[#FFEBEE] text-[#C62828]' },
 };
 
+const PRELEVEMENT_CONFIG = {
+  en_attente: { label: '⏳ En attente', cls: 'bg-gray-100 text-gray-500'     },
+  recu:       { label: '✓ Reçu',       cls: 'bg-[#E3F2FD] text-[#1565C0]'  },
+  en_analyse: { label: '🔬 En analyse',cls: 'bg-orange-100 text-orange-700' },
+  termine:    { label: '✓ Terminé',     cls: 'bg-green-100 text-green-700'   },
+};
+
 const LIEU_CONFIG = {
   labo:     { label: '🏥 Labo',     cls: 'bg-[#E3F2FD] text-[#1565C0]' },
   domicile: { label: '🏠 Domicile', cls: 'bg-[#FFF9C4] text-[#F57F17]' },
@@ -816,6 +823,27 @@ export default function RdvPage() {
     chargerRdv();
   };
 
+  // ── Prélèvement workflow ──
+  const confirmerPrelevement = async (rdvId, patientNom) => {
+    if (!confirm(`Confirmer la réception du prélèvement de ${patientNom} ?`)) return;
+    await supabase.from('rdv').update({
+      statut_prelevement: 'recu',
+      date_prelevement: new Date().toISOString(),
+    }).eq('id', rdvId);
+    chargerRdv();
+    alert('Prélèvement confirmé pour ' + patientNom);
+  };
+
+  const lancerAnalyse = async (rdvId) => {
+    await supabase.from('rdv').update({ statut_prelevement: 'en_analyse' }).eq('id', rdvId);
+    chargerRdv();
+  };
+
+  const terminerAnalyse = async (rdvId) => {
+    await supabase.from('rdv').update({ statut_prelevement: 'termine' }).eq('id', rdvId);
+    chargerRdv();
+  };
+
   const ordonnanceCount = rdvList.filter(r => r.statut_ordonnance === 'en_attente_lecture').length;
 
   const filtered = rdvList.filter(rdv => {
@@ -913,7 +941,7 @@ export default function RdvPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  {['Heure','Patient','Analyses','Lieu','Statut','Montant','Paiement','Actions'].map(col => (
+                  {['Heure','Patient','Analyses','Lieu','Statut','Prélèvement','Montant','Paiement','Actions'].map(col => (
                     <th key={col} className="px-5 py-3.5 text-left text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                       {col}
                     </th>
@@ -922,7 +950,7 @@ export default function RdvPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-400 text-sm">Aucun RDV trouvé</td></tr>
+                  <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-400 text-sm">Aucun RDV trouvé</td></tr>
                 ) : filtered.map(rdv => {
                   const statut = STATUT_CONFIG[rdv.statut] ?? { label: rdv.statut, cls: '' };
                   const lieu   = LIEU_CONFIG[rdv.lieu]     ?? { label: rdv.lieu,   cls: '' };
@@ -963,6 +991,37 @@ export default function RdvPage() {
                         {rdv.statut_ordonnance === 'en_attente_lecture' && (
                           <span className="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">📋 Ordonnance</span>
                         )}
+                      </td>
+
+                      {/* Prélèvement */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {(() => {
+                          const sp = rdv.statut_prelevement || 'en_attente';
+                          const pCfgPrel = PRELEVEMENT_CONFIG[sp] || PRELEVEMENT_CONFIG.en_attente;
+                          return (
+                            <div className="flex flex-col items-start gap-1.5">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pCfgPrel.cls}`}>{pCfgPrel.label}</span>
+                              {sp === 'en_attente' && rdv.statut !== 'en_attente' && (
+                                <button onClick={() => confirmerPrelevement(rdv.id, rdv.nom)}
+                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors whitespace-nowrap">
+                                  ✓ Prélèvement reçu
+                                </button>
+                              )}
+                              {sp === 'recu' && (
+                                <button onClick={() => lancerAnalyse(rdv.id)}
+                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#E3F2FD] text-[#1565C0] hover:bg-[#BBDEFB] transition-colors whitespace-nowrap">
+                                  🔬 Lancer analyse
+                                </button>
+                              )}
+                              {sp === 'en_analyse' && (
+                                <button onClick={() => terminerAnalyse(rdv.id)}
+                                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors whitespace-nowrap">
+                                  ✓ Analyse terminée
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Montant */}
