@@ -888,6 +888,9 @@ export default function RdvPage() {
   const [techniciens,    setTechniciens]    = useState([]);
   const [modalAssign,    setModalAssign]    = useState(null);
   const [selectedTech,   setSelectedTech]   = useState(null);
+  const [modalNvRdv,     setModalNvRdv]     = useState(false);
+  const [nvRdv,          setNvRdv]          = useState({ patient_search: '', patient_id: null, patient_nom: '', patient_tel: '', analyses: [], lieu: 'labo', adresse: '', date: '', heure: '', sous_total: 0, frais_deplacement: 0, total: 0, mode_paiement: 'cash' });
+  const [patientSuggs,   setPatientSuggs]   = useState([]);
   const [analysesList,   setAnalysesList]   = useState([]);
   const [historique,     setHistorique]     = useState([]);
 
@@ -972,6 +975,38 @@ export default function RdvPage() {
     setEditRdv(null);
     chargerRdv();
     window.alert('RDV modifie !');
+  };
+
+  // ── Créer nouveau RDV ──
+  const creerNvRdv = async () => {
+    if (!nvRdv.patient_id && !nvRdv.patient_tel) { window.alert('Patient obligatoire'); return; }
+    if (nvRdv.analyses.length === 0) { window.alert('Ajoutez au moins une analyse'); return; }
+    if (!nvRdv.date) { window.alert('Date obligatoire'); return; }
+    try {
+      let patientId = nvRdv.patient_id;
+      if (!patientId && nvRdv.patient_tel) {
+        const { data } = await supabase.from('patients').upsert({ nom: nvRdv.patient_nom || 'Patient', telephone: nvRdv.patient_tel, statut: 'actif', total_rdv: 0 }, { onConflict: 'telephone' }).select();
+        patientId = data?.[0]?.id;
+      }
+      // Insert RDV (only valid columns)
+      const { data: rdvData } = await supabase.from('rdv').insert({
+        patient_id: patientId, date: nvRdv.date, heure: nvRdv.heure || '07:00-11:00', lieu: nvRdv.lieu, notes: nvRdv.adresse || null,
+        statut: 'confirme', statut_ordonnance: 'sans_ordonnance', statut_prelevement: 'en_attente',
+      }).select('id').single();
+      // Link analyses
+      if (rdvData?.id) {
+        for (const nom of nvRdv.analyses) {
+          const a = analysesList.find(x => x.nom === nom);
+          if (a) await supabase.from('rdv_analyses').insert({ rdv_id: rdvData.id, analyse_id: a.id, prix: a.prix || 0 });
+        }
+        // Create paiement
+        await supabase.from('paiements').insert({ rdv_id: rdvData.id, sous_total: nvRdv.sous_total, frais_deplacement: nvRdv.frais_deplacement, total: nvRdv.total, mode: nvRdv.mode_paiement, statut: 'en_attente' });
+      }
+      setModalNvRdv(false);
+      setNvRdv({ patient_search: '', patient_id: null, patient_nom: '', patient_tel: '', analyses: [], lieu: 'labo', adresse: '', date: '', heure: '', sous_total: 0, frais_deplacement: 0, total: 0, mode_paiement: 'cash' });
+      chargerRdv();
+      window.alert('RDV cree !');
+    } catch (err) { window.alert('Erreur: ' + (err.message || err)); }
   };
 
   // ── Assignation technicien ──
@@ -1416,9 +1451,9 @@ export default function RdvPage() {
 
         {/* ── Bouton nouveau RDV ── */}
         <div className="flex justify-end">
-          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1] transition-colors shadow-sm">
+          <button onClick={() => setModalNvRdv(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1] transition-colors shadow-sm">
             <span className="text-base font-bold">+</span>
-            Nouveau RDV manuel
+            Nouveau RDV
           </button>
         </div>
       </div>
@@ -1577,6 +1612,121 @@ export default function RdvPage() {
             <div className="px-6 pb-5 pt-3 flex gap-3 shrink-0 border-t border-gray-100">
               <button onClick={() => setEditRdv(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200">Annuler</button>
               <button onClick={sauvegarderEditRdv} className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1]">✓ Sauvegarder</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modalNvRdv && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setModalNvRdv(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#1565C0] px-6 py-4 flex items-center justify-between shrink-0">
+              <h2 className="text-white font-bold">+ Nouveau RDV</h2>
+              <button onClick={() => setModalNvRdv(false)} className="w-7 h-7 rounded-full bg-white/20 text-white font-bold hover:bg-white/30 flex items-center justify-center text-lg">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Patient */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Patient *</label>
+                <input type="text" placeholder="Rechercher par nom..." value={nvRdv.patient_search}
+                  onChange={async (e) => { setNvRdv({ ...nvRdv, patient_search: e.target.value, patient_id: null }); if (e.target.value.length > 2) { const { data } = await supabase.from('patients').select('id,nom,telephone').ilike('nom', '%' + e.target.value + '%').limit(5); setPatientSuggs(data || []); } else { setPatientSuggs([]); } }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+                {patientSuggs.length > 0 && (
+                  <div className="border border-gray-200 rounded-xl mt-1 overflow-hidden bg-white shadow-lg">
+                    {patientSuggs.map(p => (
+                      <div key={p.id} onClick={() => { setNvRdv({ ...nvRdv, patient_id: p.id, patient_nom: p.nom, patient_tel: p.telephone, patient_search: p.nom }); setPatientSuggs([]); }}
+                        className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer border-b border-gray-50">
+                        <span className="font-bold">{p.nom}</span><span className="text-gray-400 ml-2">{p.telephone}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {nvRdv.patient_id && <p className="text-xs text-green-600 font-semibold mt-1">Patient selectionne : {nvRdv.patient_nom}</p>}
+                {!nvRdv.patient_id && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <input type="text" placeholder="Nom nouveau patient" value={nvRdv.patient_nom} onChange={e => setNvRdv({ ...nvRdv, patient_nom: e.target.value })}
+                      className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+                    <input type="text" placeholder="Telephone *" value={nvRdv.patient_tel} onChange={e => setNvRdv({ ...nvRdv, patient_tel: e.target.value })}
+                      className="px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+                  </div>
+                )}
+              </div>
+              {/* Analyses */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Analyses *</label>
+                <select onChange={e => { if (!e.target.value) return; if (!nvRdv.analyses.includes(e.target.value)) { const na = [...nvRdv.analyses, e.target.value]; const st = na.reduce((s, n) => { const a = analysesList.find(x => x.nom === n); return s + (a?.prix || 300); }, 0); setNvRdv({ ...nvRdv, analyses: na, sous_total: st, total: st + (nvRdv.frais_deplacement || 0) }); } e.target.value = ''; }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0] mb-2">
+                  <option value="">+ Ajouter une analyse...</option>
+                  {analysesList.map(a => <option key={a.id} value={a.nom}>{a.nom} - {a.prix} DA</option>)}
+                </select>
+                <div className="flex flex-wrap gap-1.5">
+                  {nvRdv.analyses.map((a, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-[#E3F2FD] text-[#1565C0] text-xs font-medium">
+                      {a}
+                      <button onClick={() => { const na = nvRdv.analyses.filter((_, idx) => idx !== i); const st = na.reduce((s, n) => { const an = analysesList.find(x => x.nom === n); return s + (an?.prix || 300); }, 0); setNvRdv({ ...nvRdv, analyses: na, sous_total: st, total: st + (nvRdv.frais_deplacement || 0) }); }}
+                        className="w-4 h-4 rounded-full hover:bg-red-100 hover:text-red-500 flex items-center justify-center text-[10px] font-black ml-0.5">x</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {/* Lieu */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Lieu</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setNvRdv({ ...nvRdv, lieu: 'labo' })} className={`flex-1 py-2.5 rounded-xl font-bold text-sm border-2 transition-colors ${nvRdv.lieu === 'labo' ? 'bg-[#1565C0] text-white border-[#1565C0]' : 'bg-white text-gray-600 border-gray-200'}`}>🏥 Labo</button>
+                  <button onClick={() => setNvRdv({ ...nvRdv, lieu: 'domicile' })} className={`flex-1 py-2.5 rounded-xl font-bold text-sm border-2 transition-colors ${nvRdv.lieu === 'domicile' ? 'bg-[#1565C0] text-white border-[#1565C0]' : 'bg-white text-gray-600 border-gray-200'}`}>🏠 Domicile</button>
+                </div>
+              </div>
+              {/* Date + Heure */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date *</label>
+                  <input type="date" value={nvRdv.date} onChange={e => setNvRdv({ ...nvRdv, date: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+                </div>
+                {nvRdv.lieu === 'domicile' && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Heure</label>
+                    <select value={nvRdv.heure} onChange={e => setNvRdv({ ...nvRdv, heure: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
+                      <option value="">Choisir</option>
+                      {['07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','13:00','14:00','15:00','16:00'].map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+              {nvRdv.lieu === 'labo' && <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-700">🕐 Horaires labo : 07h00 - 11h00</div>}
+              {nvRdv.lieu === 'domicile' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Adresse</label>
+                    <input type="text" value={nvRdv.adresse} onChange={e => setNvRdv({ ...nvRdv, adresse: e.target.value })} placeholder="Adresse complete..."
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Frais deplacement (DA)</label>
+                    <input type="number" value={nvRdv.frais_deplacement} onChange={e => { const f = Number(e.target.value) || 0; setNvRdv({ ...nvRdv, frais_deplacement: f, total: nvRdv.sous_total + f }); }}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+                  </div>
+                </>
+              )}
+              {/* Paiement */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Mode paiement</label>
+                <select value={nvRdv.mode_paiement} onChange={e => setNvRdv({ ...nvRdv, mode_paiement: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
+                  <option value="cash">Cash</option><option value="carte">Carte</option><option value="technicien">Collecte technicien</option>
+                </select>
+              </div>
+              {/* Total */}
+              <div className="bg-[#E3F2FD] rounded-xl p-4">
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Sous-total</span><span className="font-bold">{nvRdv.sous_total} DA</span></div>
+                {nvRdv.frais_deplacement > 0 && <div className="flex justify-between text-sm mt-1"><span className="text-gray-600">Deplacement</span><span className="font-bold">+{nvRdv.frais_deplacement} DA</span></div>}
+                <div className="flex justify-between text-sm mt-1 pt-1 border-t border-blue-200"><span className="font-black text-[#1565C0]">TOTAL</span><span className="font-black text-[#1565C0]">{nvRdv.total} DA</span></div>
+              </div>
+            </div>
+            <div className="px-6 pb-5 pt-3 flex gap-3 shrink-0 border-t border-gray-100">
+              <button onClick={() => setModalNvRdv(false)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200">Annuler</button>
+              <button onClick={creerNvRdv} className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1]">Creer le RDV</button>
             </div>
           </div>
         </div>
