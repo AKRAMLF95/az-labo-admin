@@ -1288,11 +1288,11 @@ export default function RdvPage() {
                         {rdv.lieu === 'domicile' && (
                           <button
                             onClick={() => { setModalAssign(rdv); setSelectedTech(null); }}
-                            className={`ml-1.5 text-xs font-bold px-3 py-1 rounded-lg border ${
+                            className={`ml-2 text-xs font-bold px-3 py-1.5 rounded-lg ${
                               rdv.technicien_nom
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : 'bg-blue-50 text-blue-700 border-blue-200'
-                            }`}
+                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                : 'bg-[#1565C0] text-white hover:bg-[#0D47A1]'
+                            } transition-colors`}
                           >
                             {rdv.technicien_nom ? `🚗 ${rdv.technicien_nom}` : '🚗 Assigner'}
                           </button>
