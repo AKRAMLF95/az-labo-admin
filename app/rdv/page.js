@@ -949,15 +949,29 @@ export default function RdvPage() {
   };
 
   const openEditRdv = (rdv) => {
-    setEditForm({ date: rdv.date || '', heure: rdv.heure || '', lieu: rdv.lieu || 'labo', statut: rdv.statut || 'en_attente', notes: rdv.notes || '' });
+    setEditForm({
+      date: rdv.date || '',
+      heure: rdv.heure || '',
+      lieu: rdv.lieu || 'labo',
+      adresse: rdv.notes || '',
+      statut: rdv.statut || 'en_attente',
+      mode_paiement: rdv.paiement?.mode || '',
+    });
     setEditRdv(rdv);
   };
 
   const sauvegarderEditRdv = async () => {
     if (!editRdv) return;
-    await supabase.from('rdv').update(editForm).eq('id', editRdv.id);
+    await supabase.from('rdv').update({
+      date: editForm.date || null,
+      heure: editForm.heure || null,
+      lieu: editForm.lieu,
+      notes: editForm.adresse || null,
+      statut: editForm.statut,
+    }).eq('id', editRdv.id);
     setEditRdv(null);
     chargerRdv();
+    window.alert('RDV modifie !');
   };
 
   // ── Assignation technicien ──
@@ -1480,53 +1494,89 @@ export default function RdvPage() {
         </div>
       )}
       {editRdv && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditRdv(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="bg-[#1565C0] px-6 py-4 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditRdv(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#1565C0] px-6 py-4 flex items-center justify-between shrink-0">
               <div>
-                <h2 className="text-white font-bold">Modifier RDV</h2>
+                <h2 className="text-white font-bold">✏️ Modifier RDV</h2>
                 <p className="text-blue-200 text-sm">{editRdv.nom || 'Patient'}</p>
               </div>
               <button onClick={() => setEditRdv(null)} className="w-7 h-7 rounded-full bg-white/20 text-white font-bold hover:bg-white/30 flex items-center justify-center text-lg">×</button>
             </div>
-            <div className="p-6 space-y-3">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Lieu */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Date</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Lieu</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditForm({ ...editForm, lieu: 'labo', heure: '' })}
+                    className={`flex-1 py-2.5 rounded-xl font-bold text-sm border-2 transition-colors ${editForm.lieu === 'labo' ? 'bg-[#1565C0] text-white border-[#1565C0]' : 'bg-white text-gray-600 border-gray-200'}`}>
+                    🏥 Labo
+                  </button>
+                  <button onClick={() => setEditForm({ ...editForm, lieu: 'domicile' })}
+                    className={`flex-1 py-2.5 rounded-xl font-bold text-sm border-2 transition-colors ${editForm.lieu === 'domicile' ? 'bg-[#1565C0] text-white border-[#1565C0]' : 'bg-white text-gray-600 border-gray-200'}`}>
+                    🏠 Domicile
+                  </button>
+                </div>
+              </div>
+              {/* Date */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
                 <input type="date" value={editForm.date || ''} onChange={e => setEditForm({ ...editForm, date: e.target.value })}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
               </div>
+              {/* Heure (domicile) */}
+              {editForm.lieu === 'domicile' && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Heure</label>
+                  <select value={editForm.heure || ''} onChange={e => setEditForm({ ...editForm, heure: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
+                    <option value="">Choisir heure</option>
+                    {['07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30'].map(h => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* Info labo */}
+              {editForm.lieu === 'labo' && (
+                <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-700">
+                  🕐 Horaires labo : 07h00 – 11h00<br/><span className="text-xs">Le patient vient directement</span>
+                </div>
+              )}
+              {/* Adresse (domicile) */}
+              {editForm.lieu === 'domicile' && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Adresse</label>
+                  <input type="text" value={editForm.adresse || ''} onChange={e => setEditForm({ ...editForm, adresse: e.target.value })} placeholder="Adresse complète..."
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
+                </div>
+              )}
+              {/* Statut */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Heure</label>
-                <input type="text" value={editForm.heure || ''} onChange={e => setEditForm({ ...editForm, heure: e.target.value })} placeholder="Ex: 09h00"
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0]" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Lieu</label>
-                <select value={editForm.lieu || 'labo'} onChange={e => setEditForm({ ...editForm, lieu: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
-                  <option value="labo">🏥 Laboratoire</option>
-                  <option value="domicile">🏠 Domicile</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Statut</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Statut</label>
                 <select value={editForm.statut || 'en_attente'} onChange={e => setEditForm({ ...editForm, statut: e.target.value })}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
-                  <option value="en_attente">En attente</option>
-                  <option value="confirme">Confirmé</option>
-                  <option value="annule">Annulé</option>
-                  <option value="termine">Terminé</option>
+                  <option value="en_attente">⏳ En attente</option>
+                  <option value="confirme">✓ Confirmé</option>
+                  <option value="annule">✗ Annulé</option>
+                  <option value="termine">✓ Terminé</option>
                 </select>
               </div>
+              {/* Mode paiement */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Notes</label>
-                <textarea value={editForm.notes || ''} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1565C0] resize-none" />
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Mode paiement</label>
+                <select value={editForm.mode_paiement || ''} onChange={e => setEditForm({ ...editForm, mode_paiement: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#1565C0]">
+                  <option value="">Non défini</option>
+                  <option value="cash">💵 Cash</option>
+                  <option value="carte">💳 Carte</option>
+                  <option value="technicien">🚗 Collecte technicien</option>
+                </select>
               </div>
             </div>
-            <div className="px-6 pb-5 flex gap-3">
-              <button onClick={() => setEditRdv(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm">Annuler</button>
-              <button onClick={sauvegarderEditRdv} className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1]">Sauvegarder</button>
+            <div className="px-6 pb-5 pt-3 flex gap-3 shrink-0 border-t border-gray-100">
+              <button onClick={() => setEditRdv(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200">Annuler</button>
+              <button onClick={sauvegarderEditRdv} className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1]">✓ Sauvegarder</button>
             </div>
           </div>
         </div>
