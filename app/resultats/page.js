@@ -95,11 +95,21 @@ export default function ResultatsPage() {
       });
       if (insErr) throw insErr;
 
-      await supabase.from('rdv').update({ statut_prelevement: 'resultat_saisi' }).eq('id', modalRdv.id);
+      // 2. Met à jour statut RDV
+      await supabase.from('rdv').update({
+        statut_prelevement: 'resultat_saisi',
+        statut: 'termine',
+      }).eq('id', modalRdv.id);
+
+      // 3. Incrémenter total_rdv patient
+      const patId = modalRdv.patients?.id || modalRdv.patient_id;
+      if (patId) {
+        await supabase.rpc('increment_rdv_count', { p_patient_id: patId }).catch(() => {});
+      }
 
       setModalRdv(null);
       chargerResultats();
-      alert('Resultats saisis !');
+      alert('Resultats saisis et disponibles dans l\'app patient !');
     } catch (err) {
       alert('Erreur: ' + err.message);
     }
