@@ -501,7 +501,7 @@ export default function TechniciensPage() {
   const rdvNonAssignes = rdvDomicile.filter(r => r.assignedTo === null).length;
 
   // ── Assigner un RDV ──
-  function handleAssign(rdvId) {
+  async function handleAssign(rdvId) {
     const techId = selectedTech[rdvId];
     if (!techId) return;
 
