@@ -179,7 +179,7 @@ function SimulatedMap({ techniciens }) {
 }
 
 // ─── Carte technicien ─────────────────────────────────────────────────────────
-function TechCard({ tech, onViewRdv, onEdit }) {
+function TechCard({ tech, onViewRdv, onEdit, onDelete }) {
   const col       = getColor(tech.id);
   const statutCfg = STATUT_CFG[tech.statut] ?? STATUT_CFG.libre;
   const total     = tech.rdvAssignes + tech.rdvTermines;
@@ -264,6 +264,12 @@ function TechCard({ tech, onViewRdv, onEdit }) {
           className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-semibold"
         >
           ✏️
+        </button>
+        <button
+          onClick={() => onDelete(tech.id, tech.nom)}
+          className="px-3 py-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors text-xs font-semibold"
+        >
+          🗑️
         </button>
       </div>
     </div>
@@ -549,6 +555,13 @@ export default function TechniciensPage() {
     }
   }
 
+  const supprimerTechnicien = async (id, nom) => {
+    if (!window.confirm('Supprimer ' + nom + ' ?')) return;
+    const { error } = await supabase.from('techniciens').delete().eq('id', id);
+    if (error) { window.alert('Erreur: ' + error.message); return; }
+    await chargerTechniciens();
+  };
+
   const nonAssignes = rdvDomicile.filter(r => r.assignedTo === null);
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm font-medium">Chargement…</div>;
@@ -595,6 +608,7 @@ export default function TechniciensPage() {
               tech={tech}
               onViewRdv={setViewRdvModal}
               onEdit={openEdit}
+              onDelete={supprimerTechnicien}
             />
           ))}
         </div>
