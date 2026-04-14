@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -932,6 +930,32 @@ export default function RdvPage() {
     setLoading(false);
   };
 
+  const annulerRdv = async (rdv) => {
+    if (!window.confirm('Annuler le RDV de ' + (rdv.nom || 'ce patient') + ' ?')) return;
+    await supabase.from('rdv').update({ statut: 'annule' }).eq('id', rdv.id);
+    chargerRdv();
+  };
+
+  const supprimerRdv = async (rdv) => {
+    if (!window.confirm('Supprimer le RDV de ' + (rdv.nom || 'ce patient') + ' ?')) return;
+    await supabase.from('rdv_analyses').delete().eq('rdv_id', rdv.id);
+    await supabase.from('paiements').delete().eq('rdv_id', rdv.id);
+    await supabase.from('rdv').delete().eq('id', rdv.id);
+    chargerRdv();
+  };
+
+  const openEditRdv = (rdv) => {
+    setEditForm({ date: rdv.date || '', heure: rdv.heure || '', lieu: rdv.lieu || 'labo', statut: rdv.statut || 'en_attente', notes: rdv.notes || '' });
+    setEditRdv(rdv);
+  };
+
+  const sauvegarderEditRdv = async () => {
+    if (!editRdv) return;
+    await supabase.from('rdv').update(editForm).eq('id', editRdv.id);
+    setEditRdv(null);
+    chargerRdv();
+  };
+
   const chargerAnalyses = async () => {
     const { data } = await supabase.from('analyses').select('id, nom, categorie, prix').eq('actif', true).order('categorie');
     if (data) setAnalysesList(data);
@@ -963,10 +987,7 @@ export default function RdvPage() {
     chargerRdv();
   };
 
-  const annulerRdv = async (id) => {
-    await supabase.from('rdv').update({ statut: 'annule' }).eq('id', id);
-    chargerRdv();
-  };
+  // annulerRdv moved above
 
   const encaisserPaiement = async (id, mode, total) => {
     await supabase.from('rdv').update({ statut: 'termine' }).eq('id', id);
@@ -1044,31 +1065,7 @@ export default function RdvPage() {
   };
 
   // ── Actions RDV ──
-  const annulerRdv = async (rdv) => {
-    if (!confirm(`Annuler le RDV de ${rdv.nom || 'ce patient'} ?`)) return;
-    await supabase.from('rdv').update({ statut: 'annule' }).eq('id', rdv.id);
-    chargerRdv();
-  };
-
-  const supprimerRdv = async (rdv) => {
-    if (!confirm(`Supprimer définitivement le RDV de ${rdv.nom || 'ce patient'} ?`)) return;
-    await supabase.from('rdv_analyses').delete().eq('rdv_id', rdv.id);
-    await supabase.from('paiements').delete().eq('rdv_id', rdv.id);
-    await supabase.from('rdv').delete().eq('id', rdv.id);
-    chargerRdv();
-  };
-
-  const openEditRdv = (rdv) => {
-    setEditForm({ date: rdv.date || '', heure: rdv.heure || '', lieu: rdv.lieu || 'labo', statut: rdv.statut || 'en_attente', notes: rdv.notes || '' });
-    setEditRdv(rdv);
-  };
-
-  const sauvegarderEditRdv = async () => {
-    if (!editRdv) return;
-    await supabase.from('rdv').update(editForm).eq('id', editRdv.id);
-    setEditRdv(null);
-    chargerRdv();
-  };
+  /* Actions RDV - déclarées après chargerRdv */
 
   const ordonnanceCount = rdvList.filter(r => r.statut_ordonnance === 'en_attente_lecture').length;
 
