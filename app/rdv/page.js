@@ -964,23 +964,29 @@ export default function RdvPage() {
   };
 
   const validerOrdonnance = async (rdvId, analyses, patientTel) => {
+    // 1. Met à jour le RDV
     await supabase.from('rdv').update({
       statut_ordonnance: 'analyses_saisies',
       statut: 'confirme',
     }).eq('id', rdvId);
 
-    // Link analyses to rdv
+    // 2. Lier les analyses au RDV
     for (const nom of analyses) {
       const found = analysesList.find(a => a.nom === nom);
       if (found) {
-        await supabase.from('rdv_analyses').insert({ rdv_id: rdvId, analyse_id: found.id });
+        await supabase.from('rdv_analyses').insert({
+          rdv_id: rdvId,
+          analyse_id: found.id,
+          prix: found.prix || 0,
+        });
       }
     }
 
-    // TODO: WhatsApp notification via API
+    // 3. TODO: WhatsApp notification via API
     console.log('Notifier patient:', patientTel, 'Analyses:', analyses);
-    alert('Analyses saisies et patient notifié !');
+
     chargerRdv();
+    alert('Ordonnance validee ! Le patient sera notifie.');
   };
 
   // ── Prélèvement workflow (dropdown) ──
