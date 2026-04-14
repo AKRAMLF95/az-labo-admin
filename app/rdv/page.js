@@ -113,6 +113,7 @@ const STATUT_CONFIG = {
 
 const PRELEVEMENT_CONFIG = {
   en_attente:     { label: '⏳ En attente',    cls: 'bg-gray-100 text-gray-500'     },
+  assigne:        { label: '🚗 Assigné',       cls: 'bg-blue-100 text-blue-700'     },
   recu:           { label: '🧪 Reçu',         cls: 'bg-[#E3F2FD] text-[#1565C0]'  },
   en_analyse:     { label: '🔬 En analyse',    cls: 'bg-orange-100 text-orange-700' },
   termine:        { label: '✓ Terminé',        cls: 'bg-green-100 text-green-700'   },
@@ -884,12 +885,15 @@ export default function RdvPage() {
   const [resultatsRdv,   setResultatsRdv]   = useState(null);
   const [editRdv,        setEditRdv]        = useState(null);
   const [editForm,       setEditForm]       = useState({});
+  const [techniciens,    setTechniciens]    = useState([]);
+  const [modalAssign,    setModalAssign]    = useState(null);
+  const [selectedTech,   setSelectedTech]   = useState(null);
   const [analysesList,   setAnalysesList]   = useState([]);
   const [historique,     setHistorique]     = useState([]);
 
   // ── Supabase ──
   useEffect(() => {
-    chargerRdv(); chargerAnalyses(); chargerHistorique();
+    chargerRdv(); chargerAnalyses(); chargerHistorique(); chargerTechniciens();
     // Auto-refresh toutes les 30 secondes
     const interval = setInterval(() => { chargerRdv(); chargerHistorique(); }, 30000);
     return () => clearInterval(interval);
@@ -954,6 +958,25 @@ export default function RdvPage() {
     await supabase.from('rdv').update(editForm).eq('id', editRdv.id);
     setEditRdv(null);
     chargerRdv();
+  };
+
+  // ── Assignation technicien ──
+  const confirmerAssignation = async () => {
+    if (!selectedTech || !modalAssign) return;
+    await supabase.from('rdv').update({
+      technicien_id: selectedTech.id,
+      technicien_nom: selectedTech.nom,
+      statut_prelevement: 'assigne',
+    }).eq('id', modalAssign.id);
+    await supabase.from('techniciens').update({ statut: 'en_mission' }).eq('id', selectedTech.id).catch(() => {});
+    setModalAssign(null);
+    setSelectedTech(null);
+    chargerRdv();
+  };
+
+  const chargerTechniciens = async () => {
+    const { data } = await supabase.from('techniciens').select('*').order('nom');
+    setTechniciens(data || []);
   };
 
   const chargerAnalyses = async () => {
@@ -1129,6 +1152,25 @@ export default function RdvPage() {
           ))}
         </div>
 
+        {/* ── RDV domicile non assignés ── */}
+        {rdvList.filter(r => r.lieu === 'domicile' && (!r.technicien_nom) && r.statut !== 'annule').length > 0 && (
+          <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+            <div className="font-bold text-orange-700 mb-2">
+              🚗 {rdvList.filter(r => r.lieu === 'domicile' && !r.technicien_nom && r.statut !== 'annule').length} RDV domicile à assigner
+            </div>
+            {rdvList.filter(r => r.lieu === 'domicile' && !r.technicien_nom && r.statut !== 'annule').slice(0, 5).map(rdv => (
+              <div key={rdv.id} className="flex justify-between items-center mt-2 pt-2 border-t border-orange-200">
+                <div>
+                  <span className="text-sm font-bold">{rdv.nom || 'Patient'}</span>
+                  <span className="text-xs text-gray-500 ml-2">{rdv.heure || '—'} — {rdv.notes || 'Domicile'}</span>
+                </div>
+                <button onClick={() => { setModalAssign(rdv); setSelectedTech(null); }}
+                  className="bg-[#1565C0] text-white text-xs px-3 py-1 rounded-lg font-bold hover:bg-[#0D47A1]">Assigner</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── Prélèvements du jour ── */}
         {showPrelCard && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1264,6 +1306,7 @@ export default function RdvPage() {
                               onChange={e => changerStatutPrelevement(rdv.id, e.target.value, rdv.nom)}
                               className={`text-xs font-semibold pl-2 pr-6 py-1.5 rounded-lg border-0 outline-none cursor-pointer transition-colors appearance-auto ${
                                 { en_attente:     'bg-[#f5f5f5] text-gray-600',
+                                  assigne:        'bg-blue-100 text-blue-700',
                                   recu:           'bg-[#E3F2FD] text-[#1565C0]',
                                   en_analyse:     'bg-[#FFF3E0] text-orange-700',
                                   termine:        'bg-[#E8F5E9] text-green-700',
@@ -1272,11 +1315,19 @@ export default function RdvPage() {
                               }`}
                             >
                               <option value="en_attente">⏳ En attente</option>
+                              <option value="assigne">🚗 Assigné</option>
                               <option value="recu">🧪 Prélèvement reçu</option>
                               <option value="en_analyse">🔬 En analyse</option>
                               <option value="termine">✓ Analyse terminée</option>
                               <option value="resultat_saisi">📊 Résultat saisi</option>
                             </select>
+                            {rdv.technicien_nom && <span className="text-[10px] text-blue-600 font-semibold">🚗 {rdv.technicien_nom}</span>}
+                            {rdv.lieu === 'domicile' && (rdv.statut_prelevement === 'en_attente' || !rdv.technicien_nom) && (
+                              <button onClick={() => { setModalAssign(rdv); setSelectedTech(null); }}
+                                className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors whitespace-nowrap shadow-sm">
+                                🚗 Assigner
+                              </button>
+                            )}
                             {rdv.statut_prelevement === 'termine' && (
                               <button onClick={() => setResultatsRdv(rdv)}
                                 className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors whitespace-nowrap shadow-sm">
@@ -1370,6 +1421,51 @@ export default function RdvPage() {
           onClose={() => setResultatsRdv(null)}
           onValidate={validerResultats}
         />
+      )}
+      {modalAssign && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setModalAssign(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#1565C0] px-6 py-4">
+              <h2 className="text-white font-bold flex items-center gap-2"><span>🚗</span> Assigner un technicien</h2>
+              <div className="text-blue-200 text-sm mt-1">
+                <p>{modalAssign.nom || 'Patient'}</p>
+                <p>📍 {modalAssign.notes || 'Domicile'} — 📅 {modalAssign.date || '—'} {modalAssign.heure || ''}</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-2 max-h-64 overflow-y-auto">
+              {techniciens.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-4">Aucun technicien enregistré</p>
+              ) : techniciens.map(tech => (
+                <div key={tech.id} onClick={() => setSelectedTech(tech)}
+                  className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    selectedTech?.id === tech.id ? 'border-[#1565C0] bg-blue-50' : 'border-gray-100 hover:border-blue-200'
+                  }`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700 text-sm">
+                      {(tech.nom || '??').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">{tech.nom}</p>
+                      <p className="text-xs text-gray-500">{tech.telephone || '—'}</p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                    (tech.statut || 'disponible') === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                  }`}>
+                    {(tech.statut || 'disponible') === 'disponible' ? 'Disponible' : 'En mission'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <button onClick={() => setModalAssign(null)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm">Annuler</button>
+              <button onClick={confirmerAssignation} disabled={!selectedTech}
+                className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm disabled:opacity-40 hover:bg-[#0D47A1]">
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {editRdv && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditRdv(null)}>
