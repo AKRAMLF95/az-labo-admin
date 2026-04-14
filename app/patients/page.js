@@ -579,11 +579,40 @@ export default function PatientsPage() {
 
   const chargerPatients = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error) setPatients(data || []);
+    try {
+      const { data, error } = await supabase
+        .from('patients')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Normalize DB rows into the shape the UI expects
+      const normalized = (data || []).map(p => {
+        const nameParts = (p.nom || '').split(' ');
+        const initiales = nameParts.map(n => n.charAt(0).toUpperCase()).join('').slice(0, 2) || '??';
+        return {
+          ...p,
+          initiales,
+          age: p.age || '—',
+          sexe: p.sexe || '—',
+          email: p.email || '',
+          statut: p.statut || 'regulier',
+          wilaya: p.wilaya || 'Alger',
+          rdvTotal: p.total_rdv || 0,
+          dernierRdv: p.dernierRdv || p.created_at?.split('T')[0] || '—',
+          whatsapp: p.whatsapp || p.telephone,
+          prefNotif: p.pref_notif || 'whatsapp',
+          rdvHistorique: p.rdvHistorique || [],
+          resultats: p.resultats || [],
+        };
+      });
+
+      setPatients(normalized);
+    } catch (err) {
+      console.error('chargerPatients error:', err);
+      setPatients([]);
+    }
     setLoading(false);
   };
 
@@ -600,7 +629,7 @@ export default function PatientsPage() {
   /* Derived */
   const filtered = patients.filter(p => {
     const q = search.toLowerCase();
-    const matchSearch = !q || p.nom.toLowerCase().includes(q) || p.telephone.includes(q);
+    const matchSearch = !q || (p.nom || '').toLowerCase().includes(q) || (p.telephone || '').includes(q);
     const matchStatut = statutFilter === 'tous' || p.statut === statutFilter;
     const matchWilaya = wilayaFilter === 'Toutes' || p.wilaya === wilayaFilter;
     return matchSearch && matchStatut && matchWilaya;

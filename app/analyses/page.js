@@ -6,92 +6,6 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 
-// ─── Données analyses ─────────────────────────────────────────────────────────
-const ANALYSES_DATA = [
-  { id: 1,  nom: 'NFS',                   categorie: 'Hématologie',   prix: 350,  actif: true,  conditions: [] },
-  { id: 2,  nom: 'Hémogramme',            categorie: 'Hématologie',   prix: 350,  actif: true,  conditions: [] },
-  { id: 3,  nom: 'VS',                    categorie: 'Hématologie',   prix: 200,  actif: true,  conditions: [] },
-  { id: 4,  nom: 'Groupe sanguin rhésus', categorie: 'Hématologie',   prix: 250,  actif: true,  conditions: [] },
-  { id: 5,  nom: 'TP',                    categorie: 'Hématologie',   prix: 300,  actif: true,  conditions: [] },
-  { id: 6,  nom: 'TCA',                   categorie: 'Hématologie',   prix: 300,  actif: true,  conditions: [] },
-  { id: 7,  nom: 'Fibrinogène',           categorie: 'Hématologie',   prix: 350,  actif: true,  conditions: [] },
-  { id: 8,  nom: 'INR',                   categorie: 'Hématologie',   prix: 300,  actif: true,  conditions: [] },
-  { id: 9,  nom: 'Glycémie à jeun',       categorie: 'Biochimie',     prix: 200,  actif: true,  conditions: ['À jeun 8h minimum', 'Pas de sport 24h avant'] },
-  { id: 10, nom: 'HbA1c',                 categorie: 'Biochimie',     prix: 400,  actif: true,  conditions: [] },
-  { id: 11, nom: 'Cholestérol total',     categorie: 'Biochimie',     prix: 250,  actif: true,  conditions: ['À jeun 12h minimum', "Pas d'alcool 48h avant"] },
-  { id: 12, nom: 'HDL',                   categorie: 'Biochimie',     prix: 250,  actif: true,  conditions: ['À jeun 12h minimum'] },
-  { id: 13, nom: 'LDL',                   categorie: 'Biochimie',     prix: 250,  actif: true,  conditions: ['À jeun 12h minimum'] },
-  { id: 14, nom: 'Triglycérides',         categorie: 'Biochimie',     prix: 250,  actif: true,  conditions: ['À jeun 12h minimum'] },
-  { id: 15, nom: 'Créatinine',            categorie: 'Biochimie',     prix: 200,  actif: true,  conditions: [] },
-  { id: 16, nom: 'Urée',                  categorie: 'Biochimie',     prix: 200,  actif: true,  conditions: [] },
-  { id: 17, nom: 'Acide urique',          categorie: 'Biochimie',     prix: 200,  actif: true,  conditions: [] },
-  { id: 18, nom: 'ASAT',                  categorie: 'Biochimie',     prix: 250,  actif: true,  conditions: [] },
-  { id: 19, nom: 'ALAT',                  categorie: 'Biochimie',     prix: 250,  actif: true,  conditions: [] },
-  { id: 20, nom: 'GGT',                   categorie: 'Biochimie',     prix: 250,  actif: true,  conditions: [] },
-  { id: 21, nom: 'Fer sérique',           categorie: 'Biochimie',     prix: 300,  actif: true,  conditions: ['À jeun recommandé (non obligatoire)'] },
-  { id: 22, nom: 'Ferritine',             categorie: 'Biochimie',     prix: 400,  actif: true,  conditions: [] },
-  { id: 23, nom: 'Calcium',               categorie: 'Biochimie',     prix: 200,  actif: true,  conditions: [] },
-  { id: 24, nom: 'Sodium',                categorie: 'Biochimie',     prix: 200,  actif: true,  conditions: [] },
-  { id: 25, nom: 'Potassium',             categorie: 'Biochimie',     prix: 200,  actif: true,  conditions: [] },
-  { id: 26, nom: 'CRP',                   categorie: 'Sérologie',     prix: 300,  actif: true,  conditions: [] },
-  { id: 27, nom: 'HIV 1&2',               categorie: 'Sérologie',     prix: 500,  actif: true,  conditions: [] },
-  { id: 28, nom: 'Hépatite B (AgHBs)',    categorie: 'Sérologie',     prix: 400,  actif: true,  conditions: [] },
-  { id: 29, nom: 'Hépatite C',            categorie: 'Sérologie',     prix: 400,  actif: true,  conditions: [] },
-  { id: 30, nom: 'Toxoplasmose IgG IgM',  categorie: 'Sérologie',     prix: 500,  actif: true,  conditions: [] },
-  { id: 31, nom: 'Rubéole IgG IgM',       categorie: 'Sérologie',     prix: 500,  actif: true,  conditions: [] },
-  { id: 32, nom: 'TSH',                   categorie: 'Hormonologie',  prix: 450,  actif: true,  conditions: ['Le matin de préférence', 'À jeun recommandé (non obligatoire)'] },
-  { id: 33, nom: 'T3 libre',              categorie: 'Hormonologie',  prix: 400,  actif: true,  conditions: ['Le matin de préférence'] },
-  { id: 34, nom: 'T4 libre',              categorie: 'Hormonologie',  prix: 400,  actif: true,  conditions: ['Le matin de préférence'] },
-  { id: 35, nom: 'FSH',                   categorie: 'Hormonologie',  prix: 450,  actif: true,  conditions: ['J2-J5 du cycle menstruel', 'Le matin de préférence'] },
-  { id: 36, nom: 'LH',                    categorie: 'Hormonologie',  prix: 450,  actif: true,  conditions: ['J2-J5 du cycle menstruel', 'Le matin de préférence'] },
-  { id: 37, nom: 'Prolactine',            categorie: 'Hormonologie',  prix: 450,  actif: true,  conditions: ['Le matin de préférence', 'À jeun recommandé (non obligatoire)'] },
-  { id: 38, nom: 'Testostérone',          categorie: 'Hormonologie',  prix: 500,  actif: true,  conditions: ['Le matin de préférence'] },
-  { id: 39, nom: 'Beta HCG',              categorie: 'Hormonologie',  prix: 400,  actif: true,  conditions: [] },
-  { id: 40, nom: 'PSA total',             categorie: 'Hormonologie',  prix: 500,  actif: true,  conditions: [] },
-  { id: 41, nom: 'ECBU',                  categorie: 'Urines',        prix: 350,  actif: true,  conditions: ['Milieu de jet (urine)', 'Flacon stérile fourni par le labo', 'Le matin de préférence'] },
-  { id: 42, nom: 'Bandelette urinaire',   categorie: 'Urines',        prix: 150,  actif: true,  conditions: [] },
-  { id: 43, nom: 'Protéinurie 24h',       categorie: 'Urines',        prix: 300,  actif: true,  conditions: ['Recueil urines sur 24h', 'Flacon stérile fourni par le labo', 'Noter heure début et fin recueil'] },
-  { id: 44, nom: 'Spermogramme complet',  categorie: 'Sperme',        prix: 1500, actif: true,  conditions: ['Abstinence 3-5 jours (sperme)', 'Recueil au laboratoire uniquement', 'Délai analyse 1h maximum'] },
-  { id: 45, nom: 'Spermocytogramme',      categorie: 'Sperme',        prix: 1200, actif: true,  conditions: ['Abstinence 3-5 jours (sperme)', 'Recueil au laboratoire uniquement'] },
-  { id: 46, nom: 'PCR COVID-19',          categorie: 'Microbiologie', prix: 2500, actif: false, conditions: [] },
-  { id: 47, nom: 'Hémoculture',           categorie: 'Microbiologie', prix: 800,  actif: true,  conditions: ['En cas de fièvre > 38.5°C'] },
-  { id: 48, nom: 'Coproculture',          categorie: 'Selles',        prix: 500,  actif: true,  conditions: ['Flacon stérile fourni par le labo'] },
-];
-
-// ─── Conditions prédéfinies ───────────────────────────────────────────────────
-const CONDITIONS_INIT = [
-  { id: 1,  categorie: 'Jeûne',          label: 'À jeun 8h minimum',                                     actif: true },
-  { id: 2,  categorie: 'Jeûne',          label: 'À jeun 12h minimum',                                    actif: true },
-  { id: 3,  categorie: 'Jeûne',          label: 'À jeun recommandé (non obligatoire)',                    actif: true },
-  { id: 4,  categorie: 'Jeûne',          label: 'Pas de sport 24h avant',                                actif: true },
-  { id: 5,  categorie: 'Jeûne',          label: "Pas d'alcool 48h avant",                                actif: true },
-  { id: 6,  categorie: 'Jeûne',          label: 'Pas de café le matin',                                  actif: true },
-  { id: 7,  categorie: 'Horaire',        label: 'Le matin de préférence',                                actif: true },
-  { id: 8,  categorie: 'Horaire',        label: 'Avant 10h obligatoire',                                 actif: true },
-  { id: 9,  categorie: 'Horaire',        label: 'À heure fixe (même heure que prélèvement précédent)',   actif: true },
-  { id: 10, categorie: 'Cycle féminin',  label: 'J2-J5 du cycle menstruel',                              actif: true },
-  { id: 11, categorie: 'Cycle féminin',  label: 'J21 du cycle menstruel',                                actif: true },
-  { id: 12, categorie: 'Cycle féminin',  label: 'Peu importe le cycle',                                  actif: true },
-  { id: 13, categorie: 'Prélèvement',    label: 'Milieu de jet (urine)',                                 actif: true },
-  { id: 14, categorie: 'Prélèvement',    label: 'Flacon stérile fourni par le labo',                     actif: true },
-  { id: 15, categorie: 'Prélèvement',    label: 'Recueil urines sur 24h',                                actif: true },
-  { id: 16, categorie: 'Prélèvement',    label: 'Noter heure début et fin recueil',                      actif: true },
-  { id: 17, categorie: 'Prélèvement',    label: 'Recueil au laboratoire uniquement',                     actif: true },
-  { id: 18, categorie: 'Prélèvement',    label: 'Délai analyse 1h maximum',                              actif: true },
-  { id: 19, categorie: 'Abstinence',     label: 'Abstinence 3-5 jours (sperme)',                         actif: true },
-  { id: 20, categorie: 'Abstinence',     label: 'Abstinence minimum 2 jours',                            actif: true },
-  { id: 21, categorie: 'Abstinence',     label: 'Abstinence maximum 7 jours',                            actif: true },
-  { id: 22, categorie: 'Médicaments',    label: 'Arrêter antibiotiques 5 jours avant',                   actif: true },
-  { id: 23, categorie: 'Médicaments',    label: 'Arrêter anticoagulants (avis médecin)',                 actif: true },
-  { id: 24, categorie: 'Médicaments',    label: 'Signaler tous médicaments en cours',                    actif: true },
-  { id: 25, categorie: 'Médicaments',    label: 'Prendre médicaments habituels normalement',             actif: true },
-  { id: 26, categorie: 'Fièvre',         label: 'En cas de fièvre > 38.5°C',                            actif: true },
-  { id: 27, categorie: 'Fièvre',         label: 'Pas de fièvre au moment du prélèvement',                actif: true },
-  { id: 28, categorie: 'Documents',      label: 'Apporter ordonnance médicale',                          actif: true },
-  { id: 29, categorie: 'Documents',      label: 'Apporter résultats précédents',                         actif: true },
-  { id: 30, categorie: 'Documents',      label: 'Apporter carnet de santé',                              actif: true },
-];
-
 // ─── Config analyses ──────────────────────────────────────────────────────────
 const ANALYSE_CATEGORIES = [
   'Hématologie', 'Biochimie', 'Sérologie', 'Hormonologie',
@@ -564,12 +478,13 @@ export default function AnalysesPage() {
     chargerAnalyses();
   };
 
-  // ── Ajouter condition personnalisée à la liste maître ──
-  function addCustomCondition(label) {
+  // ── Ajouter condition personnalisée à la liste maître (Supabase) ──
+  async function addCustomCondition(label) {
     const exists = conditionsList.some(c => c.label.toLowerCase() === label.toLowerCase());
     if (exists) return;
-    const newId = conditionsList.length > 0 ? Math.max(...conditionsList.map(c => c.id)) + 1 : 31;
-    setConditionsList(prev => [...prev, { id: newId, categorie: 'Personnalisée', label, actif: true }]);
+    await supabase.from('conditions').insert({ categorie: 'Personnalisée', label, actif: true });
+    const { data } = await supabase.from('conditions').select('*').order('categorie');
+    if (data) setConditionsList(data);
   }
 
   // ── Filtrage ──
@@ -582,34 +497,42 @@ export default function AnalysesPage() {
     return matchSearch && matchCat && matchStatus;
   });
 
-  function toggleActif(id) {
+  async function toggleActif(id) {
+    const analyse = analyses.find(a => a.id === id);
+    if (!analyse) return;
     setAnalyses(prev => prev.map(a => a.id === id ? { ...a, actif: !a.actif } : a));
+    await supabase.from('analyses').update({ actif: !analyse.actif }).eq('id', id);
   }
 
-  function commitPrix(id, rawVal) {
+  async function commitPrix(id, rawVal) {
     const val = Number(rawVal);
-    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, prix: val > 0 ? val : a.prix } : a));
+    if (val <= 0) { setEditingPrix(null); return; }
+    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, prix: val } : a));
     setEditingPrix(null);
+    await supabase.from('analyses').update({ prix: val }).eq('id', id);
   }
 
-  function addConditionToAnalyse(id, label) {
-    setAnalyses(prev => prev.map(a =>
-      a.id === id && !a.conditions.includes(label)
-        ? { ...a, conditions: [...a.conditions, label] }
-        : a
-    ));
+  async function addConditionToAnalyse(id, label) {
+    const analyse = analyses.find(a => a.id === id);
+    if (!analyse || analyse.conditions.includes(label)) return;
+    const updated = [...analyse.conditions, label];
+    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, conditions: updated } : a));
+    await supabase.from('analyses').update({ conditions: updated }).eq('id', id);
   }
 
-  function removeConditionFromAnalyse(id, idx, total) {
+  async function removeConditionFromAnalyse(id, idx, total) {
     if (total === 1 && !window.confirm('Supprimer la dernière condition ?')) return;
-    setAnalyses(prev => prev.map(a =>
-      a.id === id ? { ...a, conditions: a.conditions.filter((_, i) => i !== idx) } : a
-    ));
+    const analyse = analyses.find(a => a.id === id);
+    if (!analyse) return;
+    const updated = analyse.conditions.filter((_, i) => i !== idx);
+    setAnalyses(prev => prev.map(a => a.id === id ? { ...a, conditions: updated } : a));
+    await supabase.from('analyses').update({ conditions: updated }).eq('id', id);
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     if (window.confirm('Supprimer cette analyse ?')) {
       setAnalyses(prev => prev.filter(a => a.id !== id));
+      await supabase.from('analyses').delete().eq('id', id);
     }
   }
 
@@ -618,20 +541,24 @@ export default function AnalysesPage() {
     setModal('add');
   }
   function openEdit(analyse) {
-    setForm({ nom: analyse.nom, categorie: analyse.categorie, prix: String(analyse.prix), conditions: [...analyse.conditions] });
+    setForm({ nom: analyse.nom, categorie: analyse.categorie, prix: String(analyse.prix), conditions: [...(analyse.conditions || [])] });
     setModal(analyse);
   }
-  function saveModal() {
+  async function saveModal() {
     if (!form.nom.trim() || !form.prix) return;
+    const payload = {
+      nom: form.nom.trim(),
+      categorie: form.categorie,
+      prix: Number(form.prix),
+      conditions: form.conditions,
+    };
     if (modal === 'add') {
-      const newId = analyses.length > 0 ? Math.max(...analyses.map(a => a.id)) + 1 : 1;
-      setAnalyses(prev => [...prev, { id: newId, nom: form.nom.trim(), categorie: form.categorie, prix: Number(form.prix), actif: true, conditions: form.conditions }]);
+      await supabase.from('analyses').insert({ ...payload, actif: true });
     } else {
-      setAnalyses(prev => prev.map(a =>
-        a.id === modal.id ? { ...a, nom: form.nom.trim(), categorie: form.categorie, prix: Number(form.prix), conditions: form.conditions } : a
-      ));
+      await supabase.from('analyses').update(payload).eq('id', modal.id);
     }
     setModal(null);
+    chargerAnalyses();
   }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm font-medium">Chargement…</div>;

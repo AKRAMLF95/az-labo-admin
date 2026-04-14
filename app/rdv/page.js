@@ -99,6 +99,7 @@ const PROMOS_DB = {
 const FILTERS = [
   { key: 'tous',        label: 'Tous',       count: 24 },
   { key: 'en_attente',  label: 'En attente', count: 8  },
+  { key: 'ordonnance',  label: 'Ordonnances', count: 0, icon: '📋' },
   { key: 'en_cours',    label: 'En cours',   count: 3  },
   { key: 'termine',     label: 'Terminés',   count: 11 },
   { key: 'domicile',    label: 'Domicile',   count: 5  },
@@ -523,13 +524,19 @@ function Row({ label, value, children }) {
 }
 
 /* ─── ActionCell ─────────────────────────────────────────────────── */
-function ActionCell({ rdv, onDetails, onEncaisser, onReceipt }) {
+function ActionCell({ rdv, onDetails, onEncaisser, onReceipt, onOrdonnance }) {
   const pStatut = rdv.paiement?.statut;
   const isPaid  = ['paye_cash','paye_carte','paye_technicien','gratuit'].includes(pStatut);
 
   if (rdv.statut === 'en_attente') {
     return (
       <div className="flex items-center gap-1.5 flex-wrap">
+        {rdv.statut_ordonnance === 'en_attente_lecture' && (
+          <button onClick={() => onOrdonnance(rdv)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors whitespace-nowrap animate-pulse">
+            👁️ Voir & Saisir
+          </button>
+        )}
         {rdv.lieu === 'domicile' && (
           <button className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#1565C0] text-white hover:bg-[#0D47A1] transition-colors">
             Assigner
@@ -581,27 +588,191 @@ function ActionCell({ rdv, onDetails, onEncaisser, onReceipt }) {
   );
 }
 
+/* ─── Modal lecture ordonnance ───────────────────────────────────── */
+function OrdonnanceModal({ rdv, analysesList, onClose, onValidate }) {
+  const [selected, setSelected] = useState([]);
+  const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const patientNom = rdv.patients?.nom || rdv.nom || 'Patient';
+
+  const toggle = (nom) => {
+    setSelected(prev => prev.includes(nom) ? prev.filter(n => n !== nom) : [...prev, nom]);
+  };
+
+  const q = search.toLowerCase().trim();
+  const filteredAnalyses = analysesList.filter(a => !q || a.nom.toLowerCase().includes(q) || a.categorie.toLowerCase().includes(q));
+  const categories = [...new Set(filteredAnalyses.map(a => a.categorie))];
+
+  const handleValidate = async () => {
+    if (selected.length === 0) return;
+    setSaving(true);
+    await onValidate(rdv.id, selected, rdv.patients?.telephone);
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="bg-[#1565C0] px-6 py-4 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-white font-bold text-base flex items-center gap-2">
+              <span>📋</span> Lecture ordonnance
+            </h2>
+            <p className="text-blue-200 text-sm mt-0.5">Patient : {patientNom}</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-full bg-white/20 text-white font-bold hover:bg-white/30 transition-colors flex items-center justify-center text-lg leading-none">×</button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+          {/* Image ordonnance — cliquable pour agrandir */}
+          {rdv.image_ordonnance && (
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 relative group">
+              <img
+                src={rdv.image_ordonnance}
+                alt="Ordonnance"
+                className="w-full max-h-80 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => window.open(rdv.image_ordonnance, '_blank')}
+              />
+              <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] font-semibold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Cliquer pour agrandir
+              </div>
+            </div>
+          )}
+          {!rdv.image_ordonnance && (
+            <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center">
+              <p className="text-gray-400 text-sm">Aucune image d'ordonnance</p>
+            </div>
+          )}
+
+          {/* Analyses sélectionnées */}
+          {selected.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                Analyses saisies ({selected.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {selected.map(nom => (
+                  <span key={nom} className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-[#E3F2FD] text-[#1565C0] text-xs font-medium">
+                    <span>✓ {nom}</span>
+                    <button onClick={() => toggle(nom)} className="w-4 h-4 rounded-full hover:bg-red-100 hover:text-red-500 transition-colors flex items-center justify-center text-[10px] font-black ml-0.5">×</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Search + quick filters */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Saisir les analyses</p>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher une analyse..."
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm placeholder-gray-400 focus:outline-none focus:border-[#1565C0] transition mb-2" />
+
+            {/* Category quick-select */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {[...new Set(analysesList.map(a => a.categorie))].map(cat => (
+                <button key={cat} onClick={() => setSearch(search === cat ? '' : cat)}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                    search === cat ? 'bg-[#1565C0] text-white border-[#1565C0]' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-[#1565C0]'
+                  }`}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Grouped list */}
+            <div className="max-h-52 overflow-y-auto space-y-3 border border-gray-100 rounded-xl p-3">
+              {categories.map(cat => (
+                <div key={cat}>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{cat}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filteredAnalyses.filter(a => a.categorie === cat).map(a => {
+                      const isSel = selected.includes(a.nom);
+                      return (
+                        <button key={a.id} onClick={() => toggle(a.nom)}
+                          className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                            isSel ? 'bg-[#1565C0] text-white border-[#1565C0]' : 'bg-white text-gray-700 border-gray-200 hover:border-[#1565C0] hover:text-[#1565C0]'
+                          }`}>
+                          {isSel && '✓ '}{a.nom}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 pt-4 flex gap-3 shrink-0 border-t border-gray-100">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">Annuler</button>
+          <button onClick={handleValidate} disabled={selected.length === 0 || saving}
+            className="flex-1 py-2.5 rounded-xl bg-[#1565C0] text-white font-semibold text-sm hover:bg-[#0D47A1] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            {saving ? 'Enregistrement...' : `✓ Valider et notifier (${selected.length})`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Page principale ────────────────────────────────────────────── */
 export default function RdvPage() {
   const [rdvList,      setRdvList]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [search,       setSearch]       = useState('');
   const [activeFilter, setActiveFilter] = useState('tous');
-  const [modalRdv,     setModalRdv]     = useState(null);
-  const [encaisserRdv, setEncaisserRdv] = useState(null);
-  const [receiptRdv,   setReceiptRdv]   = useState(null);
+  const [modalRdv,       setModalRdv]       = useState(null);
+  const [encaisserRdv,   setEncaisserRdv]   = useState(null);
+  const [receiptRdv,     setReceiptRdv]     = useState(null);
+  const [ordonnanceRdv,  setOrdonnanceRdv]  = useState(null);
+  const [analysesList,   setAnalysesList]   = useState([]);
 
   // ── Supabase ──
-  useEffect(() => { chargerRdv(); }, []);
+  useEffect(() => { chargerRdv(); chargerAnalyses(); }, []);
 
   const chargerRdv = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('rdv')
-      .select(`*, patients(nom, telephone, whatsapp, pref_notif)`)
-      .order('heure');
-    if (!error) setRdvList(data || []);
+    try {
+      // Fetch RDV with patient, analyses, and paiement joins
+      const { data: rdvData, error: rdvErr } = await supabase
+        .from('rdv')
+        .select(`*, patients(nom, telephone, whatsapp, pref_notif), rdv_analyses(prix, analyses(nom)), paiements(*)`)
+        .order('created_at', { ascending: false });
+
+      if (rdvErr) throw rdvErr;
+
+      // Normalize into the shape the UI expects
+      const normalized = (rdvData || []).map(r => {
+        const patient = r.patients || {};
+        const analysesNames = (r.rdv_analyses || []).map(ra => ra.analyses?.nom).filter(Boolean);
+        const paiement = Array.isArray(r.paiements) ? r.paiements[0] : r.paiements;
+        return {
+          ...r,
+          nom: patient.nom || '—',
+          tel: patient.telephone || '—',
+          heure: r.heure || '—',
+          analyses: analysesNames,
+          paiement: paiement || { sousTotal: 0, remise: 0, codePromo: '', fraisDeplacement: 0, total: 0, mode: null, statut: 'non_facture', datePaiement: null, recu: null, technicien: null },
+        };
+      });
+
+      setRdvList(normalized);
+    } catch (err) {
+      console.error('chargerRdv error:', err);
+      setRdvList([]);
+    }
     setLoading(false);
+  };
+
+  const chargerAnalyses = async () => {
+    const { data } = await supabase.from('analyses').select('id, nom, categorie').eq('actif', true).order('categorie');
+    if (data) setAnalysesList(data);
   };
 
   const confirmerRdv = async (id) => {
@@ -625,13 +796,38 @@ export default function RdvPage() {
     chargerRdv();
   };
 
+  const validerOrdonnance = async (rdvId, analyses, patientTel) => {
+    await supabase.from('rdv').update({
+      statut_ordonnance: 'analyses_saisies',
+      statut: 'confirme',
+    }).eq('id', rdvId);
+
+    // Link analyses to rdv
+    for (const nom of analyses) {
+      const found = analysesList.find(a => a.nom === nom);
+      if (found) {
+        await supabase.from('rdv_analyses').insert({ rdv_id: rdvId, analyse_id: found.id });
+      }
+    }
+
+    // TODO: WhatsApp notification via API
+    console.log('Notifier patient:', patientTel, 'Analyses:', analyses);
+    alert('Analyses saisies et patient notifié !');
+    chargerRdv();
+  };
+
+  const ordonnanceCount = rdvList.filter(r => r.statut_ordonnance === 'en_attente_lecture').length;
+
   const filtered = rdvList.filter(rdv => {
     const q = search.toLowerCase().trim();
+    const nom = rdv.patients?.nom || rdv.nom || '';
+    const analyses = rdv.analyses || [];
     const matchSearch = !q
-      || rdv.nom.toLowerCase().includes(q)
-      || rdv.analyses.some(a => a.toLowerCase().includes(q));
+      || nom.toLowerCase().includes(q)
+      || (Array.isArray(analyses) && analyses.some(a => a.toLowerCase().includes(q)));
     let matchFilter = true;
-    if (activeFilter === 'domicile')  matchFilter = rdv.lieu === 'domicile';
+    if (activeFilter === 'ordonnance') matchFilter = rdv.statut_ordonnance === 'en_attente_lecture';
+    else if (activeFilter === 'domicile')  matchFilter = rdv.lieu === 'domicile';
     else if (activeFilter !== 'tous') matchFilter = rdv.statut === activeFilter;
     return matchSearch && matchFilter;
   });
@@ -681,17 +877,30 @@ export default function RdvPage() {
           <div className="flex flex-wrap gap-2">
             {FILTERS.map(f => {
               const isActive = activeFilter === f.key;
+              const count = f.key === 'ordonnance' ? ordonnanceCount
+                : f.key === 'tous' ? rdvList.length
+                : f.key === 'domicile' ? rdvList.filter(r => r.lieu === 'domicile').length
+                : rdvList.filter(r => r.statut === f.key).length;
+              const isOrd = f.key === 'ordonnance' && count > 0;
               return (
                 <button key={f.key} onClick={() => setActiveFilter(f.key)}
                   className={`text-sm font-semibold px-4 py-1.5 rounded-xl border transition-colors ${
                     isActive
                       ? 'bg-[#1565C0] text-white border-[#1565C0]'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-[#1565C0] hover:text-[#1565C0]'
+                      : isOrd
+                        ? 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-[#1565C0] hover:text-[#1565C0]'
                   }`}>
-                  {f.label}
-                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                    {f.count}
-                  </span>
+                  {f.icon ? `${f.icon} ` : ''}{f.label}
+                  {count > 0 && (
+                    <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                      isActive ? 'bg-white/20 text-white'
+                      : isOrd ? 'bg-orange-200 text-orange-800'
+                      : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {count}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -751,6 +960,9 @@ export default function RdvPage() {
                       {/* Statut RDV */}
                       <td className="px-5 py-4 whitespace-nowrap">
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statut.cls}`}>{statut.label}</span>
+                        {rdv.statut_ordonnance === 'en_attente_lecture' && (
+                          <span className="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">📋 Ordonnance</span>
+                        )}
                       </td>
 
                       {/* Montant */}
@@ -788,6 +1000,7 @@ export default function RdvPage() {
                           onDetails={setModalRdv}
                           onEncaisser={setEncaisserRdv}
                           onReceipt={setReceiptRdv}
+                          onOrdonnance={setOrdonnanceRdv}
                         />
                       </td>
                     </tr>
@@ -817,6 +1030,14 @@ export default function RdvPage() {
         />
       )}
       {receiptRdv && <ReceiptModal rdv={receiptRdv} onClose={() => setReceiptRdv(null)} />}
+      {ordonnanceRdv && (
+        <OrdonnanceModal
+          rdv={ordonnanceRdv}
+          analysesList={analysesList}
+          onClose={() => setOrdonnanceRdv(null)}
+          onValidate={validerOrdonnance}
+        />
+      )}
     </>
   );
 }
