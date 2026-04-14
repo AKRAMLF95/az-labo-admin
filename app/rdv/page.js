@@ -97,12 +97,12 @@ const PROMOS_DB = {
 
 /* ─── Config ─────────────────────────────────────────────────────── */
 const FILTERS = [
-  { key: 'tous',        label: 'Tous',       count: 24 },
-  { key: 'en_attente',  label: 'En attente', count: 8  },
+  { key: 'tous',        label: 'Tous',        count: 0 },
+  { key: 'en_attente',  label: 'En attente',  count: 0 },
   { key: 'ordonnance',  label: 'Ordonnances', count: 0, icon: '📋' },
-  { key: 'en_cours',    label: 'En cours',   count: 3  },
-  { key: 'termine',     label: 'Terminés',   count: 11 },
-  { key: 'domicile',    label: 'Domicile',   count: 5  },
+  { key: 'confirme',    label: 'Confirmés',   count: 0 },
+  { key: 'domicile',    label: 'Domicile',    count: 0 },
+  { key: 'historique',  label: 'Historique',   count: 0, icon: '📋' },
 ];
 
 const STATUT_CONFIG = {
@@ -899,9 +899,10 @@ export default function RdvPage() {
   const [ordonnanceRdv,  setOrdonnanceRdv]  = useState(null);
   const [resultatsRdv,   setResultatsRdv]   = useState(null);
   const [analysesList,   setAnalysesList]   = useState([]);
+  const [historique,     setHistorique]     = useState([]);
 
   // ── Supabase ──
-  useEffect(() => { chargerRdv(); chargerAnalyses(); }, []);
+  useEffect(() => { chargerRdv(); chargerAnalyses(); chargerHistorique(); }, []);
 
   const chargerRdv = async () => {
     setLoading(true);
@@ -910,6 +911,7 @@ export default function RdvPage() {
       const { data: rdvData, error: rdvErr } = await supabase
         .from('rdv')
         .select(`*, patients(nom, telephone, whatsapp, pref_notif), rdv_analyses(prix, analyses(nom)), paiements(*)`)
+        .neq('statut', 'termine')
         .order('created_at', { ascending: false });
 
       if (rdvErr) throw rdvErr;
@@ -938,8 +940,29 @@ export default function RdvPage() {
   };
 
   const chargerAnalyses = async () => {
-    const { data } = await supabase.from('analyses').select('id, nom, categorie').eq('actif', true).order('categorie');
+    const { data } = await supabase.from('analyses').select('id, nom, categorie, prix').eq('actif', true).order('categorie');
     if (data) setAnalysesList(data);
+  };
+
+  const chargerHistorique = async () => {
+    try {
+      const { data } = await supabase
+        .from('rdv')
+        .select('*, patients(nom, telephone), rdv_analyses(prix, analyses(nom)), paiements(*)')
+        .eq('statut', 'termine')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      const normalized = (data || []).map(r => {
+        const patient = r.patients || {};
+        const analysesNames = (r.rdv_analyses || []).map(ra => ra.analyses?.nom).filter(Boolean);
+        const paiement = Array.isArray(r.paiements) ? r.paiements[0] : r.paiements;
+        return { ...r, nom: patient.nom || '—', tel: patient.telephone || '—', heure: r.heure || '—', analyses: analysesNames, paiement: paiement || { total: 0, statut: 'non_facture' } };
+      });
+      setHistorique(normalized);
+    } catch (e) {
+      console.error('chargerHistorique error:', e);
+    }
   };
 
   const confirmerRdv = async (id) => {
@@ -1037,7 +1060,10 @@ export default function RdvPage() {
   const prelResultat  = rdvList.filter(r => r.statut_prelevement === 'resultat_saisi').length;
   const showPrelCard  = prelEnAttente + prelRecu + prelAnalyse + prelTermine + prelResultat > 0;
 
-  const filtered = rdvList.filter(rdv => {
+  // Si historique sélectionné, on utilise la liste historique
+  const sourceList = activeFilter === 'historique' ? historique : rdvList;
+
+  const filtered = sourceList.filter(rdv => {
     const q = search.toLowerCase().trim();
     const nom = rdv.patients?.nom || rdv.nom || '';
     const analyses = rdv.analyses || [];
@@ -1045,9 +1071,10 @@ export default function RdvPage() {
       || nom.toLowerCase().includes(q)
       || (Array.isArray(analyses) && analyses.some(a => a.toLowerCase().includes(q)));
     let matchFilter = true;
-    if (activeFilter === 'ordonnance') matchFilter = rdv.statut_ordonnance === 'en_attente_lecture';
-    else if (activeFilter === 'domicile')  matchFilter = rdv.lieu === 'domicile';
-    else if (activeFilter !== 'tous') matchFilter = rdv.statut === activeFilter;
+    if (activeFilter === 'historique')      matchFilter = true; // déjà filtré par sourceList
+    else if (activeFilter === 'ordonnance') matchFilter = rdv.statut_ordonnance === 'en_attente_lecture';
+    else if (activeFilter === 'domicile')   matchFilter = rdv.lieu === 'domicile';
+    else if (activeFilter !== 'tous')       matchFilter = rdv.statut === activeFilter;
     return matchSearch && matchFilter;
   });
 
